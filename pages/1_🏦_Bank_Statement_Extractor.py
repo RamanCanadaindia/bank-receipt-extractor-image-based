@@ -12,6 +12,7 @@ import sys
 # Ensure parent directory is in path since we are in pages/
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import extract_statement
+import auth
 
 # Set page config for premium styling
 st.set_page_config(
@@ -20,6 +21,10 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Password Check
+if not auth.check_password():
+    st.stop()
 
 # Custom CSS for rich aesthetics
 st.markdown("""

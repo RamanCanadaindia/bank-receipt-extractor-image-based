@@ -1,10 +1,15 @@
 import streamlit as st
+import auth
 
 st.set_page_config(
     page_title="Financial Document Automator",
     page_icon="📊",
     layout="wide"
 )
+
+# Password Check
+if not auth.check_password():
+    st.stop()
 
 # Custom Sleek CSS Styles
 st.markdown("""
