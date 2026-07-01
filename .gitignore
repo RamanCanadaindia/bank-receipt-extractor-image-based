@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.streamlit/
+extracted_transactions.csv
+receipts_wave_import.csv
+receipts_wave_import.xlsx
+*.csv
+*.xlsx
+.env
+keys.json

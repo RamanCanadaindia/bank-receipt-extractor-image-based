@@ -1,0 +1,285 @@
+import streamlit as st
+import os
+import tempfile
+import pandas as pd
+import base64
+from io import BytesIO
+import matplotlib.pyplot as plt
+import seaborn as sns
+import sys
+
+# Import helper functions from extract_statement
+# Ensure parent directory is in path since we are in pages/
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import extract_statement
+
+# Set page config for premium styling
+st.set_page_config(
+    page_title="Bank Statement Extractor",
+    page_icon="🏦",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom CSS for rich aesthetics
+st.markdown("""
+<style>
+    .reportview-container {
+        background: #f0f2f6;
+    }
+    .metric-card {
+        background-color: #ffffff;
+        border: 1px solid #e6e9ef;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        text-align: center;
+    }
+    .metric-value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #1f77b4;
+    }
+    .metric-label {
+        font-size: 14px;
+        color: #6d7278;
+        margin-top: 5px;
+    }
+    .stButton>button {
+        background-color: #4CAF50;
+        color: white;
+        border-radius: 8px;
+        font-weight: bold;
+        transition: all 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #45a049;
+        transform: translateY(-2px);
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Main Title & Description
+st.title("🏦 Bank Statement Transaction Extractor")
+st.markdown("""
+Extract transaction history from both **digital** and **scanned (image-only)** PDF statements.
+This tool will automatically verify the mathematical integrity of the statement's balance flow and output a clean CSV file.
+""")
+
+# Sidebar settings
+st.sidebar.header("⚙️ Configuration")
+
+# API Key management
+api_key = st.sidebar.text_input(
+    "Google AI Studio API Key",
+    type="password",
+    value=os.environ.get("GEMINI_API_KEY", ""),
+    help="Required for scanned/image-only PDFs. Get a free key at https://aistudio.google.com/"
+)
+
+model = st.sidebar.selectbox(
+    "Gemini OCR Model",
+    ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-pro"],
+    index=0,
+    help="Flash models are highly recommended for fast table extraction."
+)
+
+force_ocr = st.sidebar.checkbox(
+    "Force OCR Mode",
+    value=False,
+    help="Force image-based OCR extraction even if the PDF contains digital text."
+)
+
+sort_chronologically = st.sidebar.checkbox(
+    "Sort Output Chronologically",
+    value=True,
+    help="Sort transactions from oldest to newest. Uncheck this to keep the exact page/row order from the PDF statement."
+)
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### How it works:")
+st.sidebar.info("""
+1. **Upload** your statement PDF.
+2. The tool checks for **digital text** first (free).
+3. If scanned, it renders pages using **pypdfium2** and uses **Gemini Vision OCR** to extract the rows.
+4. It **mathematically validates** the transactions chronologically and flags errors.
+""")
+
+# File Uploader
+uploaded_file = st.file_uploader("Upload your Bank Statement PDF", type=["pdf"])
+
+if uploaded_file is not None:
+    # Determine extraction mode
+    text_pages = []
+    is_digital = False
+    
+    if not force_ocr:
+        with st.spinner("Checking PDF type..."):
+            text_pages = extract_statement.extract_digital_text(uploaded_file)
+            if text_pages:
+                is_digital = True
+                
+    # Action button
+    btn_label = "⚡ Extract from Digital PDF (Free)" if is_digital else "👁️ Extract via Gemini Vision OCR"
+    run_extraction = st.button(btn_label)
+    
+    if run_extraction:
+        transactions = []
+        
+        if is_digital:
+            with st.spinner("Extracting transaction text digitally..."):
+                transactions = extract_statement.parse_digital_text(text_pages)
+        else:
+            # Scanned statement - requires API Key
+            if not api_key:
+                st.error("🔑 Gemini API Key is required to process scanned statements. Please enter it in the sidebar.")
+            else:
+                # Render pages to base64 images - requires a temporary file on disk for pypdfium2
+                with st.spinner("Rendering PDF pages to image format..."):
+                    # Reset the file stream pointer first
+                    uploaded_file.seek(0)
+                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                        tmp_file.write(uploaded_file.read())
+                        tmp_pdf_path = tmp_file.name
+                    
+                    try:
+                        base64_images = extract_statement.render_pdf_pages(tmp_pdf_path)
+                    finally:
+                        if os.path.exists(tmp_pdf_path):
+                            try:
+                                os.remove(tmp_pdf_path)
+                            except Exception:
+                                pass
+                
+                # API calls per page in parallel
+                import concurrent.futures
+                
+                max_workers = 3
+                
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+                status_text.text(f"Processing {len(base64_images)} pages in parallel (concurrency={max_workers})...")
+                
+                completed = 0
+                transactions_by_page = {}
+                
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    # Submit all tasks
+                    futures = {
+                        executor.submit(extract_statement.call_gemini_api, api_key, model, img_b64, i+1): i+1
+                        for i, img_b64 in enumerate(base64_images)
+                    }
+                    
+                    for future in concurrent.futures.as_completed(futures):
+                        page_num = futures[future]
+                        try:
+                            page_txs = future.result()
+                            transactions_by_page[page_num] = page_txs
+                        except Exception as e:
+                            st.warning(f"Error on page {page_num}: {e}")
+                            transactions_by_page[page_num] = []
+                            
+                        completed += 1
+                        status_text.text(f"Finished page {page_num} ({completed}/{len(base64_images)} pages processed)...")
+                        progress_bar.progress(completed / len(base64_images))
+                
+                # Assemble in correct page order
+                for page_num in sorted(transactions_by_page.keys()):
+                    transactions.extend(transactions_by_page[page_num])
+                    
+                progress_bar.empty()
+                status_text.empty()
+        
+        if transactions:
+            # Validate the flow
+            with st.spinner("Validating mathematical balance flows..."):
+                validated_txs = extract_statement.validate_and_correct_transactions(
+                    transactions, sort_chronologically=sort_chronologically
+                )
+            
+            # Convert to Pandas DataFrame
+            df = pd.DataFrame(validated_txs)
+            
+            # Reorder and format columns
+            df['date'] = pd.to_datetime(df['date'])
+            if sort_chronologically:
+                df = df.sort_values(by='date').reset_index(drop=True)
+            else:
+                df = df.reset_index(drop=True)
+            
+            # Metrics Calculation
+            total_debits = df['debit'].fillna(0).sum()
+            total_credits = df['credit'].fillna(0).sum()
+            opening_bal = df.iloc[0]['balance'] + df.iloc[0]['debit'] - df.iloc[0]['credit'] if (pd.notna(df.iloc[0]['debit']) or pd.notna(df.iloc[0]['credit'])) else df.iloc[0]['balance']
+            closing_bal = df.iloc[-1]['balance']
+            net_flow = total_credits - total_debits
+            
+            # Layout metric cards
+            st.success("🎉 Extraction and mathematical validation complete!")
+            
+            col1, col2, col3, col4, col5 = st.columns(5)
+            with col1:
+                st.markdown(f'<div class="metric-card"><div class="metric-value">${opening_bal:,.2f}</div><div class="metric-label">Opening Balance</div></div>', unsafe_allow_html=True)
+            with col2:
+                st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: #ea4335;">${total_debits:,.2f}</div><div class="metric-label">Total Withdrawals</div></div>', unsafe_allow_html=True)
+            with col3:
+                st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: #34a853;">${total_credits:,.2f}</div><div class="metric-label">Total Deposits</div></div>', unsafe_allow_html=True)
+            with col4:
+                flow_color = "#34a853" if net_flow >= 0 else "#ea4335"
+                st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: {flow_color};">${net_flow:,.2f}</div><div class="metric-label">Net Monthly Flow</div></div>', unsafe_allow_html=True)
+            with col5:
+                st.markdown(f'<div class="metric-card"><div class="metric-value">${closing_bal:,.2f}</div><div class="metric-label">Closing Balance</div></div>', unsafe_allow_html=True)
+            
+            st.write("")
+            
+            # Layout visual tabs
+            tab1, tab2 = st.tabs(["📊 Financial Visuals", "📋 Transaction Table"])
+            
+            with tab1:
+                col_plot1, col_plot2 = st.columns(2)
+                
+                with col_plot1:
+                    st.subheader("Balance Trend Over Time")
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    sns.lineplot(data=df, x='date', y='balance', marker='o', ax=ax, color='#1f77b4', linewidth=2)
+                    ax.set_title("Running Account Balance History")
+                    ax.set_xlabel("Date")
+                    ax.set_ylabel("Balance ($)")
+                    plt.xticks(rotation=45)
+                    st.pyplot(fig)
+                    
+                with col_plot2:
+                    st.subheader("Monthly Debits vs Credits")
+                    df_monthly = df.copy()
+                    df_monthly['month'] = df_monthly['date'].dt.to_period('M').astype(str)
+                    grouped_monthly = df_monthly.groupby('month')[['debit', 'credit']].sum().reset_index()
+                    
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    df_melted = pd.melt(grouped_monthly, id_vars=['month'], value_vars=['debit', 'credit'], 
+                                        var_name='Type', value_name='Amount')
+                    sns.barplot(data=df_melted, x='month', y='Amount', hue='Type', ax=ax, palette=['#ea4335', '#34a853'])
+                    ax.set_title("Total Withdrawals (Debits) vs Deposits (Credits)")
+                    ax.set_xlabel("Month")
+                    ax.set_ylabel("Amount ($)")
+                    st.pyplot(fig)
+                    
+            with tab2:
+                st.subheader("Extracted Transaction History")
+                # Make columns pretty
+                df_display = df.copy()
+                df_display['date'] = df_display['date'].dt.strftime('%Y-%m-%d')
+                df_display['debit'] = df_display['debit'].map(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
+                df_display['credit'] = df_display['credit'].map(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
+                df_display['balance'] = df_display['balance'].map(lambda x: f"${x:,.2f}")
+                st.dataframe(df_display, use_container_width=True)
+                
+            # Download CSV button
+            csv_data = df.to_csv(index=False)
+            st.download_button(
+                label="📥 Download Transactions as CSV",
+                data=csv_data,
+                file_name="extracted_bank_transactions.csv",
+                mime="text/csv"
+            )
+        else:
+            st.warning("⚠️ No transactions could be extracted from the file.")

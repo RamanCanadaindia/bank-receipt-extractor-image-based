@@ -1,0 +1,9 @@
+streamlit
+pypdfium2
+pillow
+pypdf
+pdfplumber
+pandas
+matplotlib
+seaborn
+openpyxl
