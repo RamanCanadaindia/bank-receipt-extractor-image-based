@@ -311,6 +311,20 @@ Make sure you extract EVERY single transaction row in the table."""
             
     return []
 
+def safe_float(val):
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        # Strip any currency symbols, commas, or extra whitespace
+        clean_val = str(val).replace("$", "").replace(",", "").strip()
+        if not clean_val or clean_val.lower() == 'none' or clean_val.lower() == 'null':
+            return 0.0
+        return float(clean_val)
+    except ValueError:
+        return 0.0
+
 def validate_and_correct_transactions(transactions, sort_chronologically=True):
     """
     Sorts transactions chronologically, checks balance transitions,
@@ -318,6 +332,16 @@ def validate_and_correct_transactions(transactions, sort_chronologically=True):
     """
     if not transactions:
         return []
+        
+    # Standardize and clean all numeric values first to avoid TypeErrors
+    for tx in transactions:
+        tx["balance"] = safe_float(tx.get("balance"))
+        
+        deb_val = safe_float(tx.get("debit"))
+        tx["debit"] = deb_val if deb_val != 0.0 else None
+        
+        cred_val = safe_float(tx.get("credit"))
+        tx["credit"] = cred_val if cred_val != 0.0 else None
         
     # Store original order index
     for idx, tx in enumerate(transactions):
@@ -336,8 +360,8 @@ def validate_and_correct_transactions(transactions, sort_chronologically=True):
         prev_bal = prev["balance"]
         curr_bal = curr["balance"]
         
-        deb = curr["debit"] if curr["debit"] else 0.0
-        cred = curr["credit"] if curr["credit"] else 0.0
+        deb = curr["debit"] if curr["debit"] is not None else 0.0
+        cred = curr["credit"] if curr["credit"] is not None else 0.0
         
         expected_bal = round(prev_bal - deb + cred, 2)
         
