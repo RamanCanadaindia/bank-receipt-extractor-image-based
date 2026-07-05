@@ -14,6 +14,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import extract_statement
 import auth
 import categorizer
+import importlib
+importlib.reload(categorizer)
 
 # Set page config for premium styling
 st.set_page_config(

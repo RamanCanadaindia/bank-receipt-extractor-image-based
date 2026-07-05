@@ -10,6 +10,8 @@ import seaborn as sns
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auth
 import categorizer
+import importlib
+importlib.reload(categorizer)
 
 # Try importing pdfplumber for digital PDF table extraction
 try:
