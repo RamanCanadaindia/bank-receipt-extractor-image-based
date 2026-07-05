@@ -217,6 +217,7 @@ if uploaded_file is not None:
                 
                 # Convert to DataFrame
                 df = pd.DataFrame(categorized_txs)
+                df['source_tab'] = "Bank"
                 df['date'] = pd.to_datetime(df['date'])
                 if sort_chronologically:
                     df = df.sort_values(by='date').reset_index(drop=True)
@@ -225,7 +226,7 @@ if uploaded_file is not None:
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                 
                 # Ensure all columns exist and are ordered
-                cols_order = ['date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
+                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
                 for col in cols_order:
                     if col not in df.columns:
                         df[col] = ""
@@ -317,6 +318,10 @@ if uploaded_file is not None:
                         ],
                         required=True,
                     ),
+                    "source_tab": st.column_config.TextColumn(
+                        "Source Tab",
+                        width="small"
+                    ),
                     "gifi_code": st.column_config.TextColumn(
                         "GIFI Code",
                         help="GIFI taxonomy code",
@@ -329,7 +334,7 @@ if uploaded_file is not None:
                         options=["0%", "5%", "7%", "12%", ""]
                     )
                 },
-                disabled=["date", "description", "debit", "credit", "balance"],
+                disabled=["source_tab", "date", "description", "debit", "credit", "balance"],
                 use_container_width=True,
                 key="editor_key"
             )
@@ -361,21 +366,61 @@ if uploaded_file is not None:
                         st.info("No manual changes detected. All transactions match current rules!")
             
         with tab3:
-            st.subheader("Filter Transactions by Category")
+            view_type = st.radio("Report Layout", ["Grouped by Category (General Ledger)", "Single Category Filter"], horizontal=True, key="cat_report_view_type_bank")
+            
             unique_cats_in_data = sorted(df['category'].dropna().unique())
-            if unique_cats_in_data:
-                # Add "All" option to view all transactions at once
-                unique_cats_in_data = ["All"] + unique_cats_in_data
+            if not unique_cats_in_data:
+                st.info("No categorized transactions available.")
+            elif view_type == "Grouped by Category (General Ledger)":
+                st.subheader("General Ledger by Category")
+                for cat in unique_cats_in_data:
+                    df_cat = df[df['category'] == cat]
+                    if df_cat.empty:
+                        continue
+                    
+                    # Calculate sums
+                    cat_debit = pd.to_numeric(df_cat['debit'], errors='coerce').fillna(0).sum()
+                    cat_credit = pd.to_numeric(df_cat['credit'], errors='coerce').fillna(0).sum()
+                    cat_net = cat_credit - cat_debit
+                    
+                    # Prepare display DataFrame
+                    df_cat_display = pd.DataFrame()
+                    df_cat_display['Source Tab'] = df_cat['source_tab']
+                    df_cat_display['Date'] = df_cat['date']
+                    df_cat_display['Description'] = df_cat['description']
+                    df_cat_display['Debit'] = pd.to_numeric(df_cat['debit'], errors='coerce')
+                    df_cat_display['Credit'] = pd.to_numeric(df_cat['credit'], errors='coerce')
+                    df_cat_display['Net Amount'] = pd.to_numeric(df_cat['credit'], errors='coerce').fillna(0) - pd.to_numeric(df_cat['debit'], errors='coerce').fillna(0)
+                    
+                    # Append TOTAL row
+                    total_row = pd.DataFrame([{
+                        'Source Tab': 'TOTAL',
+                        'Date': '',
+                        'Description': '',
+                        'Debit': cat_debit,
+                        'Credit': cat_credit,
+                        'Net Amount': cat_net
+                    }])
+                    df_cat_display = pd.concat([df_cat_display, total_row], ignore_index=True)
+                    
+                    # Render category name and table
+                    st.markdown(f"#### 📂 {cat}")
+                    st.dataframe(df_cat_display, use_container_width=True, hide_index=True)
+                    st.write("")
+            else:
+                # Single Category Filter
+                st.subheader("Filter Transactions by Category")
+                unique_options = ["All"] + unique_cats_in_data
                 selected_filter_cat = st.selectbox(
                     "Select Category to View Details",
-                    unique_cats_in_data,
+                    unique_options,
                     key="filter_cat_selector_bank"
                 )
                 if selected_filter_cat == "All":
                     df_filtered = df
                 else:
                     df_filtered = df[df['category'] == selected_filter_cat]
-                
+                    
                 cat_spend = pd.to_numeric(df_filtered['debit'], errors='coerce').fillna(0).sum()
                 cat_income = pd.to_numeric(df_filtered['credit'], errors='coerce').fillna(0).sum()
                 
@@ -387,9 +432,7 @@ if uploaded_file is not None:
                 with col_c3:
                     st.metric("Total Deposits (Credits)", f"${cat_income:,.2f}")
                     
-                st.dataframe(df_filtered[['date', 'description', 'debit', 'credit', 'balance', 'gifi_code', 'gst_rate']], use_container_width=True)
-            else:
-                st.info("No categorized transactions available to filter.")
+                st.dataframe(df_filtered[['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'gifi_code', 'gst_rate']], use_container_width=True)
             
         # Download CSV button
         csv_data = df_edited.to_csv(index=False)
