@@ -169,6 +169,8 @@ def classify_gifi_items(raw_items):
         seen_codes.add(code)
         
         desc = item.get("description", "").strip()
+        # Clean trailing periods and dots (commonly extracted from leader lines)
+        desc = desc.rstrip(".").strip()
         curr = safe_float(item.get("current_year"))
         prior = safe_float(item.get("prior_year"))
         
