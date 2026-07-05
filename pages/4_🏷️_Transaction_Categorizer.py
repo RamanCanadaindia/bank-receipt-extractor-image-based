@@ -235,8 +235,33 @@ if uploaded_file is not None:
                 
                 # Auto Categorize using hybrid engine
                 categorized_txs = categorizer.categorize_transactions(api_key, standard_txs)
+                
+                # Sort chronologically to compute mathematically consistent balance flow
+                try:
+                    categorized_txs.sort(key=lambda x: pd.to_datetime(x["date"], errors="coerce"))
+                except Exception:
+                    pass
+                    
+                # Calculate Running Balance
+                running_balance = 0.0
+                for i, tx in enumerate(categorized_txs):
+                    deb = tx.get("debit") if tx.get("debit") is not None else 0.0
+                    cred = tx.get("credit") if tx.get("credit") is not None else 0.0
+                    net_change = cred - deb
+                    
+                    if i == 0:
+                        desc_lower = tx["description"].lower()
+                        if "opening" in desc_lower and ("bal" in desc_lower or "blan" in desc_lower):
+                            running_balance = net_change
+                        else:
+                            running_balance = net_change
+                    else:
+                        running_balance += net_change
+                        
+                    tx["balance"] = round(running_balance, 2)
+                    
                 st.session_state.categorizer_transactions = categorized_txs
-                st.success("🎉 Processing complete!")
+                st.success("🎉 Processing and running balance calculation complete!")
 
         # Render Dashboard if processed
         if "categorizer_transactions" in st.session_state and st.session_state.categorizer_transactions:
@@ -288,7 +313,7 @@ if uploaded_file is not None:
                 df_editor_display['date'] = df_editor_display['date'].dt.strftime('%Y-%m-%d')
                 
                 # Make clean columns order
-                cols_order = ['date', 'description', 'debit', 'credit', 'category', 'gifi_code', 'gst_rate']
+                cols_order = ['date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
                 for col in cols_order:
                     if col not in df_editor_display.columns:
                         df_editor_display[col] = ""
