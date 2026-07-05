@@ -634,7 +634,7 @@ Readers are cautioned that these financial statements may not be appropriate for
         is_rows_html += f'<tr><td class="section-header" style="font-weight: bold;">NET INCOME BEFORE INCOME TAXES</td><td class="num-col single-under" style="font-weight: bold;">${net_income_before_tax_cur:,.2f}</td><td class="num-col single-under" style="font-weight: bold;">${net_income_before_tax_pri:,.2f}</td></tr>'
         
         # Income Taxes
-        is_rows_html += f'<tr><td class="indented-td">Current Income Taxes (GIFI 9990)</td><td class="num-col">${tax_cur:,.2f}</td><td class="num-col">${tax_pri:,.2f}</td></tr>'
+        is_rows_html += f'<tr><td class="indented-td">Current Income Taxes</td><td class="num-col">${tax_cur:,.2f}</td><td class="num-col">${tax_pri:,.2f}</td></tr>'
         
         # Net Income After Tax
         is_rows_html += f'<tr><td class="section-header" style="font-weight: bold;">NET INCOME (LOSS) FOR THE YEAR</td><td class="num-col double-under" style="font-weight: bold;">${net_income_after_tax_cur:,.2f}</td><td class="num-col double-under" style="font-weight: bold;">${net_income_after_tax_pri:,.2f}</td></tr>'

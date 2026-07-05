@@ -540,7 +540,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     
     # INCOME TAX
     is_data.append([
-        Paragraph("Current Income Taxes (GIFI 9990)", style_table_text_indent),
+        Paragraph("Current Income Taxes", style_table_text_indent),
         Paragraph(fmt_acc(tax_cur), style_table_num),
         Paragraph(fmt_acc(tax_pri), style_table_num)
     ])
