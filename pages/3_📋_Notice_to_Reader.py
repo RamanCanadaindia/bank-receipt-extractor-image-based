@@ -812,15 +812,35 @@ Readers are cautioned that these financial statements may not be appropriate for
 </body>
 </html>"""
 
-    # Add HTML Download & Printing Actions
+    # 5. Generate direct PDF using ReportLab
+    import gifi_pdf_generator
+    try:
+        pdf_report_data = gifi_pdf_generator.generate_financial_pdf(
+            meta, classified, compiler_name, compilation_date_str, report_type, basis_of_accounting
+        )
+    except Exception as pdf_err:
+        pdf_report_data = None
+        st.error(f"Error compiling PDF: {pdf_err}")
+
+    # Add HTML & PDF Download Actions
     st.markdown("---")
-    col_dl1, col_dl2 = st.columns(2)
+    col_dl1, col_dl2, col_dl3 = st.columns(3)
     with col_dl1:
+        if pdf_report_data:
+            st.download_button(
+                label="📥 Download PDF Report",
+                data=pdf_report_data,
+                file_name=f"financial_statements_{meta.get('corporation_name', 'Company').replace(' ', '_')}.pdf",
+                mime="application/pdf"
+            )
+        else:
+            st.warning("⚠️ Direct PDF generation unavailable.")
+    with col_dl2:
         st.download_button(
             label="📥 Download HTML Report (Print Ready)",
             data=html_report,
             file_name=f"financial_statements_{meta.get('corporation_name', 'Company').replace(' ', '_')}.html",
             mime="text/html"
         )
-    with col_dl2:
-        st.info("💡 **How to Save as PDF**: Download the HTML report above, open it in your browser (Chrome/Edge/Safari), and press **`Ctrl + P`** (or **`Cmd + P`**). Select **Save as PDF** and set margins to 'Default' to get a perfect multi-page PDF compilation statement!")
+    with col_dl3:
+        st.info("💡 **Which to choose?**: Use the **PDF** button for instant print-ready download, or use the **HTML** button for browser-native printing customization (`Ctrl + P`).")
