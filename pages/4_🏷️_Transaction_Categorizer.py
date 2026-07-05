@@ -333,7 +333,7 @@ if uploaded_file is not None:
                                 "Repairs and maintenance", "Salaries and wages", "Subcontract Expense",
                                 "Telephone Expense", "Trade Sales", "Travel Expense", "Truck Loan", "Vehicle Asset",
                                 "Vehicle Expense", "Equipment rental/lease", "Dumping Charges", "Utilities",
-                                "Other Expenses", "Revenue / Deposits"
+                                "Other Expenses", "Revenue / Deposits", "Uncategorized"
                             ],
                             required=True
                         ),

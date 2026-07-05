@@ -149,7 +149,8 @@ CATEGORY_META = {
     "Dumping Charges": {"gifi": "9279", "gst": "5%"},
     "Utilities": {"gifi": "9220", "gst": "12%"},
     "Other Expenses": {"gifi": "", "gst": "0%"},
-    "Revenue / Deposits": {"gifi": "8000", "gst": "5%"}
+    "Revenue / Deposits": {"gifi": "8000", "gst": "5%"},
+    "Uncategorized": {"gifi": "", "gst": ""}
 }
 
 def lookup_by_rules(desc):
