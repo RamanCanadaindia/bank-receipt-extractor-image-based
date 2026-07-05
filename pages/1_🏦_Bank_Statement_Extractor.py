@@ -300,12 +300,26 @@ if uploaded_file is not None:
                         help="Select standard business tax category",
                         width="medium",
                         options=[
-                            "Advertising & Marketing", "Automotive & Travel", "Office Expenses",
-                            "Meals & Entertainment", "Professional Fees", "Rent & Utilities",
-                            "Insurance", "Subcontractors & Labor", "Bank Fees & Interest",
-                            "Taxes & Licenses", "Revenue / Deposits", "Groceries", "Other Expenses"
+                            "Accounting Fees", "Advertising Expense", "Bank Charges", "Business taxes",
+                            "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
+                            "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Rent",
+                            "Repairs and maintenance", "Salaries and wages", "Subcontract Expense",
+                            "Telephone Expense", "Trade Sales", "Travel Expense", "Truck Loan", "Vehicle Asset",
+                            "Vehicle Expense", "Equipment rental/lease", "Dumping Charges", "Utilities",
+                            "Other Expenses", "Revenue / Deposits"
                         ],
                         required=True,
+                    ),
+                    "gifi_code": st.column_config.TextColumn(
+                        "GIFI Code",
+                        help="GIFI taxonomy code",
+                        width="small"
+                    ),
+                    "gst_rate": st.column_config.SelectboxColumn(
+                        "GST/PST Rate",
+                        help="Applicable GST or combined sales tax rate",
+                        width="small",
+                        options=["0%", "5%", "12%", ""]
                     )
                 },
                 disabled=["date", "description", "debit", "credit", "balance"],

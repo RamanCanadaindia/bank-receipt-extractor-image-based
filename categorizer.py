@@ -3,75 +3,229 @@ import json
 import urllib.request
 import urllib.error
 
-# Heuristic rules for common transaction types
-KEYWORDS_MAP = {
-    r"shell|petro|esso|chevron|gas|fuel|husky|co-op|coop": "Automotive & Travel",
-    r"starbucks|tim\s*horton|mcdonald|restaurant|pub|grill|cafe|subway|pizza|uber\s*eats|skip\s*the|doordash|tim\s*bit": "Meals & Entertainment",
-    r"walmart|loblaws|sobeys|safeway|costco|grocer|metro|no\s*frills|superstore|grocery": "Groceries",
-    r"amazon|staples|indigo|ink|paper|software|adobe|microsoft|google|github|aws|zoom|domain|host": "Office Expenses",
-    r"rent|lease|landlord|realty|mortgage": "Rent & Utilities",
-    r"rogers|bell|telus|shaw|fido|koodo|internet|hydro|power|water|energy": "Rent & Utilities",
-    r"fee|service\s*charge|nsf|monthly\s*fee|interest\s*charge|bank\s*card|chg|overdraft": "Bank Fees & Interest",
-    r"insurance|intact|aviva|co-operators|td\s*insurance|desjardins": "Insurance",
-    r"payroll|salary|wage|bonus|direct\s*deposit|subcontract|employee": "Subcontractors & Labor",
-    r"revenue|invoice|deposit|e-transfer\s*receive|etransfer\s*rec|payment\s*received|square\s*inc|stripe|wire\s*transfer": "Revenue / Deposits",
-    r"advertising|marketing|facebook|adwords|meta\s*ad|ad\s*spend": "Advertising & Marketing",
-    r"legal|law|cpa|accountant|notary|counsel|audit": "Professional Fees",
-    r"cra|tax|revenue\s*agency|gst|hst|corporate\s*tax": "Taxes & Licenses"
+# Exact custom rules mapping from the user's PDF lookup sheet
+# (pattern_regex, Category, GIFI_Code, GST_Rate)
+CUSTOM_RULES = [
+    # Page 1
+    (r"acc fee-\s*full serv", "Bank Charges", "8715", "0%"),
+    (r"annual cash back credit", "Bank Charges", "8715", "0%"),
+    (r"balance fee waiver", "Bank Charges", "8715", "0%"),
+    (r"bank fee", "Bank Charges", "8715", "0%"),
+    (r"cash advance interest", "Bank Charges", "8715", "0%"),
+    (r"draft fee", "Bank Charges", "8715", "0%"),
+    (r"installment interest", "Bank Charges", "8715", "0%"),
+    (r"interest paid", "Bank Charges", "8715", "0%"),
+    (r"monthly fee", "Bank Charges", "8715", "0%"),
+    (r"nsf charge", "Bank Charges", "8715", "0%"),
+    (r"online banking wire fee", "Bank Charges", "8715", "0%"),
+    (r"overdraft interest", "Bank Charges", "8715", "0%"),
+    (r"overdraft per item charge", "Bank Charges", "8715", "0%"),
+    (r"overdraft s/c", "Bank Charges", "8715", "0%"),
+    (r"overlimit fee", "Bank Charges", "8715", "0%"),
+    (r"plan fee", "Bank Charges", "8715", "0%"),
+    (r"purchase interest", "Bank Charges", "8715", "0%"),
+    (r"regular transaction fee", "Bank Charges", "8715", "0%"),
+    (r"retail interest", "Bank Charges", "8715", "0%"),
+    (r"send e-tfr fee", "Bank Charges", "8715", "0%"),
+    (r"service charge", "Bank Charges", "8715", "0%"),
+    (r"bc registry", "Business taxes", "8760", "0%"),
+    (r"driver services centre", "Business taxes", "8760", "12%"),
+    (r"american express regular", "CC Payment", "", "0%"),
+    (r"mastercard, rbc", "CC Payment", "", "0%"),
+    # Page 2
+    (r"mastercard, walmart", "CC Payment", "", "0%"),
+    (r"payment - thank you", "CC Payment", "", "0%"),
+    (r"individual shareholder", "Due to individual shareholder", "3261", "0%"),
+    (r"opening balance", "Due to Related Party", "2860", "0%"),
+    (r"icbc", "Insurance expense", "8690", "0%"),
+    (r"insurance", "Insurance expense", "8690", "0%"),
+    (r"pre-authorized payment, icbc", "Insurance expense", "8690", "0%"),
+    (r"worksafebc", "Insurance expense", "8690", "0%"),
+    (r"7-eleven store", "Meal", "8523", "0%"),
+    (r"a&w", "Meal", "8523", "0%"),
+    (r"apna chaat", "Meal", "8523", "0%"),
+    (r"booster juice", "Meal", "8523", "0%"),
+    (r"burger king", "Meal", "8523", "0%"),
+    (r"dhaliwal sweets", "Meal", "8523", "0%"),
+    (r"dqoj", "Meal", "8523", "0%"),
+    (r"freshslice pizza", "Meal", "8523", "0%"),
+    (r"kwantlen pizza", "Meal", "8523", "0%"),
+    (r"lepp farm market", "Meal", "8523", "0%"),
+    (r"little caesars", "Meal", "8523", "0%"),
+    (r"lunch bucket", "Meal", "8523", "0%"),
+    (r"mcdonald", "Meal", "8523", "0%"),
+    (r"mirch masala", "Meal", "8523", "0%"),
+    (r"osmows", "Meal", "8523", "0%"),
+    (r"pak punjab sweets", "Meal", "8523", "0%"),
+    (r"pizza", "Meal", "8523", "0%"),
+    # Page 3
+    (r"pizza 64", "Meal", "8523", "0%"),
+    (r"rose sweet & tandoori", "Meal", "8523", "0%"),
+    (r"starbucks", "Meal", "8523", "0%"),
+    (r"subway", "Meal", "8523", "0%"),
+    (r"surrey punjab", "Meal", "8523", "0%"),
+    (r"sushi nara", "Meal", "8523", "0%"),
+    (r"tim horton", "Meal", "8523", "0%"),
+    (r"triple o", "Meal", "8523", "0%"),
+    (r"zaika tastes of india", "Meal", "8523", "0%"),
+    (r"fineprint signs", "Office Expense", "8810", "12%"),
+    (r"intuit", "Office Expense", "8810", "12%"),
+    (r"intuit \*qbooks payroll", "Office Expense", "8810", "12%"),
+    (r"microsoft", "Office Expense", "8810", "12%"),
+    (r"rent", "Rent", "8912", ""),
+    (r"abc auto & window glass", "Repairs and maintenance", "8962", "12%"),
+    (r"sukh auto repair", "Repairs and maintenance", "8962", "12%"),
+    (r"salaries and wages", "Salaries and wages", "9060", "0%"),
+    (r"subcontract exp", "Subcontract Expense", "9110", "5%"),
+    (r"bell mobility", "Telephone Expense", "9225", "12%"),
+    (r"freedom mobile", "Telephone Expense", "9225", "12%"),
+    (r"rogers", "Telephone Expense", "9225", "12%"),
+    (r"telus", "Telephone Expense", "9225", "12%"),
+    (r"deposit", "Trade Sales", "8000", "5%"),
+    (r"mobile cheque deposit", "Trade Sales", "8000", "5%"),
+    (r"mobile deposit", "Trade Sales", "8000", "5%"),
+    # Page 4
+    (r"uber canada", "Travel Expense", "9200", "5%"),
+    (r"bill payment ford credit", "Truck Loan", "", "0%"),
+    (r"vehicle asset", "Vehicle Asset", "1742", ""),
+    (r"canco petroleum", "Vehicle Expense", "9281", "5%"),
+    (r"castle car wash", "Vehicle Expense", "9281", "5%"),
+    (r"centex", "Vehicle Expense", "9281", "5%"),
+    (r"chevron", "Vehicle Expense", "9281", "5%"),
+    (r"chv40268", "Vehicle Expense", "9281", "5%"),
+    (r"chv40269", "Vehicle Expense", "9281", "5%"),
+    (r"chv43013", "Vehicle Expense", "9281", "5%"),
+    (r"chv43014", "Vehicle Expense", "9281", "5%"),
+    (r"chv43028", "Vehicle Expense", "9281", "5%"),
+    (r"chv43099", "Vehicle Expense", "9281", "5%"),
+    (r"chv43126", "Vehicle Expense", "9281", "5%"),
+    (r"city of kelowna parking", "Vehicle Expense", "9281", "5%"),
+    (r"costco gas", "Vehicle Expense", "9281", "5%"),
+    (r"esso", "Vehicle Expense", "9281", "5%"),
+    (r"fraser valley aggregat", "Vehicle Expense", "9281", "5%"),
+    (r"impark", "Vehicle Expense", "9281", "5%"),
+    (r"linterra aggregates", "Vehicle Expense", "9281", "5%"),
+    (r"nationwide fuel", "Vehicle Expense", "9281", "5%"),
+    (r"peterbilt pacific", "Vehicle Expense", "9281", "5%"),
+    (r"petro canada", "Vehicle Expense", "9281", "5%"),
+    (r"petro-canada", "Vehicle Expense", "9281", "5%"),
+    (r"shell", "Vehicle Expense", "9281", "5%"),
+    (r"shine auto wash", "Vehicle Expense", "9281", "5%"),
+    (r"speedwash", "Vehicle Expense", "9281", "5%"),
+    (r"super save gas", "Vehicle Expense", "9281", "5%"),
+    # Page 5
+    (r"truck wash", "Vehicle Expense", "9281", "5%"),
+    (r"yvr parking", "Vehicle Expense", "9281", "5%"),
+    (r"equipment rental/lease", "Equipment rental/lease", "8914", "5%"),
+    (r"dumping charges", "Dumping Charges", "9279", "5%"),
+    (r"utilities", "Utilities", "9220", "12%")
+]
+
+# Standard category-to-meta mappings for fallback/AI classifications
+CATEGORY_META = {
+    "Accounting Fees": {"gifi": "8862", "gst": "5%"},
+    "Advertising Expense": {"gifi": "8521", "gst": "12%"},
+    "Bank Charges": {"gifi": "8715", "gst": "0%"},
+    "Business taxes": {"gifi": "8760", "gst": "0%"},
+    "CC Payment": {"gifi": "", "gst": "0%"},
+    "CRA Payment": {"gifi": "", "gst": "0%"},
+    "Due to individual shareholder": {"gifi": "3261", "gst": "0%"},
+    "Due to Related Party": {"gifi": "2860", "gst": "0%"},
+    "Insurance expense": {"gifi": "8690", "gst": "0%"},
+    "Meal": {"gifi": "8523", "gst": "0%"},
+    "Office Expense": {"gifi": "8810", "gst": "12%"},
+    "Office Supplies": {"gifi": "8811", "gst": "12%"},
+    "Rent": {"gifi": "8912", "gst": "0%"},
+    "Repairs and maintenance": {"gifi": "8962", "gst": "12%"},
+    "Salaries and wages": {"gifi": "9060", "gst": "0%"},
+    "Subcontract Expense": {"gifi": "9110", "gst": "5%"},
+    "Telephone Expense": {"gifi": "9225", "gst": "12%"},
+    "Trade Sales": {"gifi": "8000", "gst": "5%"},
+    "Travel Expense": {"gifi": "9200", "gst": "5%"},
+    "Truck Loan": {"gifi": "", "gst": "0%"},
+    "Vehicle Asset": {"gifi": "1742", "gst": "0%"},
+    "Vehicle Expense": {"gifi": "9281", "gst": "5%"},
+    "Equipment rental/lease": {"gifi": "8914", "gst": "5%"},
+    "Dumping Charges": {"gifi": "9279", "gst": "5%"},
+    "Utilities": {"gifi": "9220", "gst": "12%"},
+    "Other Expenses": {"gifi": "", "gst": "0%"},
+    "Revenue / Deposits": {"gifi": "8000", "gst": "5%"}
 }
 
-def categorize_by_rules(desc, is_credit=False):
+def lookup_by_rules(desc):
+    """
+    Looks up a transaction description in the custom rules sheet.
+    Returns (category, gifi_code, gst_rate) or (None, None, None).
+    """
     desc_lower = str(desc).lower()
-    
-    # Check keyword patterns
-    for pattern, category in KEYWORDS_MAP.items():
+    for pattern, category, gifi, gst in CUSTOM_RULES:
         if re.search(pattern, desc_lower):
-            return category
-            
-    # Default fallbacks
-    if is_credit:
-        return "Revenue / Deposits"
-    else:
-        return "Other Expenses"
+            return category, gifi, gst
+    return None, None, None
 
 def categorize_transactions(api_key, transactions):
     """
-    Categorize a list of transaction dictionaries.
-    Uses Gemini if api_key is provided, falling back to local rule-based heuristics.
+    Categorize a list of transaction dictionaries using hybrid rules + AI.
+    Returns transaction dicts with 'category', 'gifi_code', and 'gst_rate' added.
     """
     if not transactions:
         return []
         
-    # Extract unique descriptions to optimize API payload size
-    unique_descriptions = list(set(
-        t["description"] for t in transactions if t.get("description")
-    ))
+    # Phase 1: Local lookup search (0ms, 100% accurate)
+    unresolved_descs = []
+    lookup_results = {}
     
+    for t in transactions:
+        desc = t.get("description", "")
+        if not desc:
+            continue
+        cat, gifi, gst = lookup_by_rules(desc)
+        if cat:
+            lookup_results[desc] = (cat, gifi, gst)
+        else:
+            unresolved_descs.append(desc)
+            
+    # Phase 2: Call Gemini for remaining/unknown descriptions
+    unresolved_descs = list(set(unresolved_descs))
     gemini_map = {}
-    if api_key:
-        gemini_map = categorize_with_gemini(api_key, unique_descriptions)
+    if api_key and unresolved_descs:
+        gemini_map = categorize_with_gemini(api_key, unresolved_descs)
         
-    # Map back to transactions
+    # Phase 3: Assemble results with fallback logic
     categorized_txs = []
     for tx in transactions:
         desc = tx.get("description", "")
         is_credit = tx.get("credit") is not None and tx.get("credit") > 0
         
-        # Check Gemini response first
-        category = gemini_map.get(desc)
+        category = None
+        gifi_code = ""
+        gst_rate = "0%"
         
-        # Verify it mapped to a valid category, otherwise fallback to rules
-        valid_categories = {
-            "Advertising & Marketing", "Automotive & Travel", "Office Expenses",
-            "Meals & Entertainment", "Professional Fees", "Rent & Utilities",
-            "Insurance", "Subcontractors & Labor", "Bank Fees & Interest",
-            "Taxes & Licenses", "Revenue / Deposits", "Groceries", "Other Expenses"
-        }
-        if not category or category not in valid_categories:
-            category = categorize_by_rules(desc, is_credit)
+        # Check rule lookup first
+        if desc in lookup_results:
+            category, gifi_code, gst_rate = lookup_results[desc]
+        # Check Gemini response second
+        elif desc in gemini_map:
+            category = gemini_map[desc]
+            meta = CATEGORY_META.get(category, {"gifi": "", "gst": "0%"})
+            gifi_code = meta["gifi"]
+            gst_rate = meta["gst"]
             
+        # Standard default fallbacks
+        if not category:
+            if is_credit:
+                category = "Trade Sales"
+                gifi_code = "8000"
+                gst_rate = "5%"
+            else:
+                category = "Other Expenses"
+                gifi_code = ""
+                gst_rate = "0%"
+                
         new_tx = tx.copy()
         new_tx["category"] = category
+        new_tx["gifi_code"] = gifi_code
+        new_tx["gst_rate"] = gst_rate
         categorized_txs.append(new_tx)
         
     return categorized_txs
@@ -82,20 +236,9 @@ def categorize_with_gemini(api_key, descriptions):
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
     
-    prompt = """Analyze the following transaction descriptions and assign each one of them to EXACTLY one of these standard business categories:
-- Advertising & Marketing
-- Automotive & Travel
-- Office Expenses
-- Meals & Entertainment
-- Professional Fees
-- Rent & Utilities
-- Insurance
-- Subcontractors & Labor
-- Bank Fees & Interest
-- Taxes & Licenses
-- Revenue / Deposits
-- Groceries
-- Other Expenses
+    categories_list = list(CATEGORY_META.keys())
+    prompt = f"""Analyze the following transaction descriptions and assign each one of them to EXACTLY one of these standard business categories:
+{json.dumps(categories_list)}
 
 Return a raw JSON object mapping each description key directly to its category value. Do not wrap in markdown or backticks.
 Descriptions to categorize:
