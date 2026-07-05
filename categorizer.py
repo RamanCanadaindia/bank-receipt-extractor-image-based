@@ -163,6 +163,34 @@ def lookup_by_rules(desc):
             return category, gifi, gst
     return None, None, None
 
+def save_user_rule(desc, category, gifi_code, gst_rate):
+    """
+    Saves a manual category change to user_rules.json for persistent learning.
+    """
+    import os
+    user_rules_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_rules.json")
+    user_rules = {}
+    if os.path.exists(user_rules_path):
+        try:
+            with open(user_rules_path, "r", encoding="utf-8") as f:
+                user_rules = json.load(f)
+        except Exception:
+            pass
+            
+    user_rules[str(desc).strip()] = {
+        "category": category,
+        "gifi_code": gifi_code,
+        "gst_rate": gst_rate
+    }
+    
+    try:
+        with open(user_rules_path, "w", encoding="utf-8") as f:
+            json.dump(user_rules, f, indent=4, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error saving user rule: {e}")
+        return False
+
 def categorize_transactions(api_key, transactions):
     """
     Categorize a list of transaction dictionaries using hybrid rules + AI.
@@ -170,6 +198,17 @@ def categorize_transactions(api_key, transactions):
     """
     if not transactions:
         return []
+        
+    # Load persistent user-defined overrides first
+    import os
+    user_rules = {}
+    user_rules_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_rules.json")
+    if os.path.exists(user_rules_path):
+        try:
+            with open(user_rules_path, "r", encoding="utf-8") as f:
+                user_rules = json.load(f)
+        except Exception as e:
+            print(f"Error loading user_rules.json: {e}")
         
     # Phase 1: Local lookup search (0ms, 100% accurate)
     unresolved_descs = []
@@ -179,6 +218,16 @@ def categorize_transactions(api_key, transactions):
         desc = t.get("description", "")
         if not desc:
             continue
+            
+        # Check user-defined overrides first
+        if desc in user_rules:
+            cat = user_rules[desc].get("category")
+            gifi = user_rules[desc].get("gifi_code", "")
+            gst = user_rules[desc].get("gst_rate", "0%")
+            lookup_results[desc] = (cat, gifi, gst)
+            continue
+            
+        # Check default custom rules sheet
         cat, gifi, gst = lookup_by_rules(desc)
         if cat:
             lookup_results[desc] = (cat, gifi, gst)
@@ -201,7 +250,7 @@ def categorize_transactions(api_key, transactions):
         gifi_code = ""
         gst_rate = "0%"
         
-        # Check rule lookup first
+        # Check user rules or default lookup rules
         if desc in lookup_results:
             category, gifi_code, gst_rate = lookup_results[desc]
         # Check Gemini response second

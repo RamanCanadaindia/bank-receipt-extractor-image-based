@@ -354,6 +354,29 @@ if uploaded_file is not None:
                 # Write back edits
                 st.session_state.categorizer_transactions = df_edited.to_dict('records')
                 
+                # Remember categories button
+                st.write("")
+                if st.button("💾 Remember Manual Category Changes (Learn for Future)", key="remember_btn_cat"):
+                    saved_count = 0
+                    for tx in df_edited.to_dict('records'):
+                        desc = tx.get("description")
+                        cat = tx.get("category")
+                        gifi = tx.get("gifi_code", "")
+                        gst = tx.get("gst_rate", "0%")
+                        
+                        # Check if this matches default rules
+                        d_cat, d_gifi, d_gst = categorizer.lookup_by_rules(desc)
+                        if d_cat == cat and d_gifi == gifi and d_gst == gst:
+                            continue
+                            
+                        categorizer.save_user_rule(desc, cat, gifi, gst)
+                        saved_count += 1
+                        
+                    if saved_count > 0:
+                        st.success(f"🎉 Saved {saved_count} merchant rules! The app will remember these mappings in the future.")
+                    else:
+                        st.info("No manual changes detected. All transactions match current rules!")
+                
             # Download actions
             csv_dl = df_edited.to_csv(index=False)
             st.download_button(
