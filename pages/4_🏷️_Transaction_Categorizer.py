@@ -260,20 +260,29 @@ if uploaded_file is not None:
                         
                     tx["balance"] = round(running_balance, 2)
                     
-                st.session_state.categorizer_transactions = categorized_txs
+                # Convert to DataFrame
+                df_proc = pd.DataFrame(categorized_txs)
+                df_proc['date'] = pd.to_datetime(df_proc['date'], errors='coerce')
+                df_proc = df_proc.dropna(subset=['date']).sort_values(by='date').reset_index(drop=True)
+                df_proc['date'] = df_proc['date'].dt.strftime('%Y-%m-%d')
+                
+                # Ensure all columns exist and are ordered
+                cols_order = ['date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
+                for col in cols_order:
+                    if col not in df_proc.columns:
+                        df_proc[col] = ""
+                df_proc = df_proc[cols_order]
+                
+                st.session_state.categorizer_df = df_proc
                 st.success("🎉 Processing and running balance calculation complete!")
 
-        # Render Dashboard if processed
-        if "categorizer_transactions" in st.session_state and st.session_state.categorizer_transactions:
-            df_proc = pd.DataFrame(st.session_state.categorizer_transactions)
-            
-            # Format and display
-            df_proc['date'] = pd.to_datetime(df_proc['date'], errors='coerce')
-            df_proc = df_proc.dropna(subset=['date']).sort_values(by='date').reset_index(drop=True)
+        # Render Dashboard if processed dataframe exists
+        if "categorizer_df" in st.session_state and st.session_state.categorizer_df is not None:
+            df_proc = st.session_state.categorizer_df
             
             # Metrics
-            total_spend = df_proc['debit'].fillna(0).sum()
-            total_income = df_proc['credit'].fillna(0).sum()
+            total_spend = pd.to_numeric(df_proc['debit'], errors='coerce').fillna(0).sum()
+            total_income = pd.to_numeric(df_proc['credit'], errors='coerce').fillna(0).sum()
             tx_count = len(df_proc)
             
             col_met1, col_met2, col_met3 = st.columns(3)
@@ -291,7 +300,7 @@ if uploaded_file is not None:
             
             with tab_vis:
                 # Spend by category breakdown
-                df_exp_only = df_proc[df_proc['debit'] > 0]
+                df_exp_only = df_proc[pd.to_numeric(df_proc['debit'], errors='coerce') > 0]
                 if not df_exp_only.empty:
                     df_cat_summary = df_exp_only.groupby('category')['debit'].sum().reset_index()
                     df_cat_summary = df_cat_summary.sort_values(by='debit', ascending=False)
@@ -309,18 +318,8 @@ if uploaded_file is not None:
                 st.subheader("Categorized Transaction List")
                 st.markdown("*Adjust categories, GIFI codes, and GST rates directly in the grid. Changes will save automatically.*")
                 
-                df_editor_display = df_proc.copy()
-                df_editor_display['date'] = df_editor_display['date'].dt.strftime('%Y-%m-%d')
-                
-                # Make clean columns order
-                cols_order = ['date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
-                for col in cols_order:
-                    if col not in df_editor_display.columns:
-                        df_editor_display[col] = ""
-                df_editor_display = df_editor_display[cols_order]
-                
                 df_edited = st.data_editor(
-                    df_editor_display,
+                    st.session_state.categorizer_df,
                     column_config={
                         "category": st.column_config.SelectboxColumn(
                             "Category",
@@ -346,13 +345,13 @@ if uploaded_file is not None:
                             options=["0%", "5%", "12%", ""]
                         )
                     },
-                    disabled=["date", "description", "debit", "credit"],
+                    disabled=["date", "description", "debit", "credit", "balance"],
                     use_container_width=True,
                     key="cat_editor_key"
                 )
                 
-                # Write back edits
-                st.session_state.categorizer_transactions = df_edited.to_dict('records')
+                # Write back edits to keep editor state in sync
+                st.session_state.categorizer_df = df_edited
                 
                 # Remember categories button
                 st.write("")

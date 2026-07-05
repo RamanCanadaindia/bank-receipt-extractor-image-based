@@ -212,27 +212,37 @@ if uploaded_file is not None:
             with st.spinner("Auto-categorizing transactions..."):
                 # Run auto-categorization helper
                 categorized_txs = categorizer.categorize_transactions(api_key, validated_txs)
-                st.session_state.bank_transactions = categorized_txs
+                
+                # Convert to DataFrame
+                df = pd.DataFrame(categorized_txs)
+                df['date'] = pd.to_datetime(df['date'])
+                if sort_chronologically:
+                    df = df.sort_values(by='date').reset_index(drop=True)
+                else:
+                    df = df.reset_index(drop=True)
+                df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+                
+                # Ensure all columns exist and are ordered
+                cols_order = ['date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
+                for col in cols_order:
+                    if col not in df.columns:
+                        df[col] = ""
+                df = df[cols_order]
+                
+                st.session_state.bank_df = df
                 st.success("🎉 Extraction, validation, and categorization complete!")
         else:
             st.warning("⚠️ No transactions could be extracted from the file.")
 
     # Now render dashboard if transactions are loaded in session state
-    if "bank_transactions" in st.session_state and st.session_state.bank_transactions:
-        df = pd.DataFrame(st.session_state.bank_transactions)
+    if "bank_df" in st.session_state and st.session_state.bank_df is not None:
+        df = st.session_state.bank_df
         
-        # Ensure date is parsed
-        df['date'] = pd.to_datetime(df['date'])
-        if sort_chronologically:
-            df = df.sort_values(by='date').reset_index(drop=True)
-        else:
-            df = df.reset_index(drop=True)
-            
         # Metrics Calculation
-        total_debits = df['debit'].fillna(0).sum()
-        total_credits = df['credit'].fillna(0).sum()
-        opening_bal = df.iloc[0]['balance'] + df.iloc[0]['debit'] - df.iloc[0]['credit'] if (pd.notna(df.iloc[0]['debit']) or pd.notna(df.iloc[0]['credit'])) else df.iloc[0]['balance']
-        closing_bal = df.iloc[-1]['balance']
+        total_debits = pd.to_numeric(df['debit'], errors='coerce').fillna(0).sum()
+        total_credits = pd.to_numeric(df['credit'], errors='coerce').fillna(0).sum()
+        opening_bal = pd.to_numeric(df.iloc[0]['balance'], errors='coerce') + pd.to_numeric(df.iloc[0]['debit'], errors='coerce').fillna(0) - pd.to_numeric(df.iloc[0]['credit'], errors='coerce').fillna(0) if (pd.notna(df.iloc[0]['debit']) or pd.notna(df.iloc[0]['credit'])) else pd.to_numeric(df.iloc[0]['balance'], errors='coerce')
+        closing_bal = pd.to_numeric(df.iloc[-1]['balance'], errors='coerce')
         net_flow = total_credits - total_debits
         
         # Layout metric cards
@@ -270,7 +280,7 @@ if uploaded_file is not None:
             with col_plot2:
                 st.subheader("Spending Breakdown by Category")
                 # Group non-deposits by category
-                df_expenses = df[df["debit"] > 0]
+                df_expenses = df[pd.to_numeric(df["debit"], errors='coerce') > 0]
                 if not df_expenses.empty:
                     df_cat = df_expenses.groupby("category")["debit"].sum().reset_index()
                     df_cat = df_cat.sort_values(by="debit", ascending=False)
@@ -287,13 +297,8 @@ if uploaded_file is not None:
             st.subheader("Extracted Transaction History")
             st.markdown("*Double-click a category cell to edit/reassign categories directly!*")
             
-            # Interactive data editor
-            # Ensure columns are formatted nicely but preserve underlying data types
-            df_display = df.copy()
-            df_display['date'] = df_display['date'].dt.strftime('%Y-%m-%d')
-            
             df_edited = st.data_editor(
-                df_display,
+                st.session_state.bank_df,
                 column_config={
                     "category": st.column_config.SelectboxColumn(
                         "Category",
@@ -328,7 +333,7 @@ if uploaded_file is not None:
             )
             
             # Write back edits to session state if changed
-            st.session_state.bank_transactions = df_edited.to_dict('records')
+            st.session_state.bank_df = df_edited
             
             # Remember categories button
             st.write("")
