@@ -36,7 +36,7 @@ CUSTOM_RULES = [
     (r"mastercard, walmart", "CC Payment", "", "0%"),
     (r"payment - thank you", "CC Payment", "", "0%"),
     (r"individual shareholder", "Due to individual shareholder", "3261", "0%"),
-    (r"opening balance", "Due to Related Party", "2860", "0%"),
+    (r"opening\s*(balance|blanace|bal)", "Due to Related Party", "2860", "0%"),
     (r"icbc", "Insurance expense", "8690", "0%"),
     (r"insurance", "Insurance expense", "8690", "0%"),
     (r"pre-authorized payment, icbc", "Insurance expense", "8690", "0%"),
