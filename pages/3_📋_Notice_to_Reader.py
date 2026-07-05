@@ -465,7 +465,6 @@ with col_right:
         <div class="page-preview">
             <div class="report-title">Financial Statements</div>
             <div class="company-name">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div class="report-subtitle" style="margin-top: 10px;">Business Number: {format_business_number(meta.get('business_number'))}</div>
             <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
         </div>
         """, unsafe_allow_html=True)
@@ -748,7 +747,6 @@ with col_right:
     <div class="page">
         <div class="report-title">Financial Statements</div>
         <div class="company-name">{meta.get('corporation_name', 'Company')}</div>
-        <div class="report-subtitle" style="margin-top: 10px;">Business Number: {format_business_number(meta.get('business_number'))}</div>
         <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
     </div>
     

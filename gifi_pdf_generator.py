@@ -177,7 +177,6 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story.append(Paragraph("FINANCIAL STATEMENTS", style_cover_title))
     story.append(Spacer(1, 30))
     story.append(Paragraph(meta.get("corporation_name", "Corporation").upper(), style_cover_company))
-    story.append(Paragraph(f"Business Number: {format_business_number(meta.get('business_number'))}", style_cover_sub))
     story.append(Spacer(1, 100))
     
     # Format year end
