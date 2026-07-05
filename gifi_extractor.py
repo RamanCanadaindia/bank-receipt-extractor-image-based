@@ -173,6 +173,10 @@ def classify_gifi_items(raw_items):
             classified["total_equity_reported"] = cleaned_item
         elif code in (9999, 9970):
             classified["net_income_reported"] = cleaned_item
+            
+        # Skip summary/total codes in detailed lists to avoid duplicate/triple counting
+        if code in (1599, 2008, 2009, 2599, 3139, 3620, 8089, 8299, 8518, 9367, 9970, 9999):
+            continue
         elif 1000 <= code <= 1599:
             classified["current_assets"].append(cleaned_item)
         elif 1600 <= code <= 2199:
