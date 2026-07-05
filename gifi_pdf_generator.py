@@ -259,16 +259,17 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     
     total_liab_equity_cur = total_liab_calc_cur + total_equity_calc_cur
     total_liab_equity_pri = total_liab_calc_pri + total_equity_calc_pri
-    
-    # Table details
+       # Table details
     bs_data = [
         [Paragraph("<strong>Account Description</strong>", style_table_text_bold), 
          Paragraph("<strong>Current Year</strong>", ParagraphStyle('R_Bold', parent=style_table_num_bold)), 
+         "",
          Paragraph("<strong>Prior Year</strong>", ParagraphStyle('R_Bold', parent=style_table_num_bold))]
     ]
     
     t_styles = [
-        ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
+        ('LINEBELOW', (0,0), (1,0), 1.5, colors.black),
+        ('LINEBELOW', (3,0), (3,0), 1.5, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ('TOPPADDING', (0,0), (-1,-1), 4),
@@ -283,16 +284,16 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         return f"{val:,.2f}"
         
     # ASSETS
-    row_idx = len(bs_data)
-    bs_data.append([Paragraph("<strong>ASSETS</strong>", style_table_text_bold), "", ""])
+    bs_data.append([Paragraph("<strong>ASSETS</strong>", style_table_text_bold), "", "", ""])
     
     # Current Assets
     if classified["current_assets"]:
-        bs_data.append([Paragraph("<strong>Current Assets</strong>", style_table_text_bold), "", ""])
+        bs_data.append([Paragraph("<strong>Current Assets</strong>", style_table_text_bold), "", "", ""])
         for x in classified["current_assets"]:
             bs_data.append([
                 Paragraph(x["description"], style_table_text_indent),
                 Paragraph(fmt_acc(x["current_year"]), style_table_num),
+                "",
                 Paragraph(fmt_acc(x["prior_year"]), style_table_num)
             ])
         # Total Current
@@ -300,13 +301,15 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         bs_data.append([
             Paragraph("Total Current Assets", style_table_text_bold),
             Paragraph(fmt_acc(cur_assets_sum_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(cur_assets_sum_pri), style_table_num_bold)
         ])
-        t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
     # Tangible Capital Assets
     if classified["tangible_assets"]:
-        bs_data.append([Paragraph("<strong>Tangible Capital Assets</strong>", style_table_text_bold), "", ""])
+        bs_data.append([Paragraph("<strong>Tangible Capital Assets</strong>", style_table_text_bold), "", "", ""])
         for x in classified["tangible_assets"]:
             desc = x["description"]
             is_amort = "amort" in desc.lower() or "accumulated" in desc.lower() or x["gifi_code"] in (1743, 2009)
@@ -317,6 +320,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
             bs_data.append([
                 Paragraph(display_desc, style_table_text_indent),
                 Paragraph(fmt_acc(val_cur), style_table_num),
+                "",
                 Paragraph(fmt_acc(val_pri), style_table_num)
             ])
         # Net Tangible
@@ -324,85 +328,101 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         bs_data.append([
             Paragraph("Net Tangible Capital Assets", style_table_text_bold),
             Paragraph(fmt_acc(tang_assets_net_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(tang_assets_net_pri), style_table_num_bold)
         ])
-        t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
     # Long Term Assets
     if classified["long_term_assets"]:
-        bs_data.append([Paragraph("<strong>Long Term Assets</strong>", style_table_text_bold), "", ""])
+        bs_data.append([Paragraph("<strong>Long Term Assets</strong>", style_table_text_bold), "", "", ""])
         for x in classified["long_term_assets"]:
             bs_data.append([
                 Paragraph(x["description"], style_table_text_indent),
                 Paragraph(fmt_acc(x["current_year"]), style_table_num),
+                "",
                 Paragraph(fmt_acc(x["prior_year"]), style_table_num)
             ])
         line_row = len(bs_data)
         bs_data.append([
             Paragraph("Total Long Term Assets", style_table_text_bold),
             Paragraph(fmt_acc(long_assets_sum_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(long_assets_sum_pri), style_table_num_bold)
         ])
-        t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
     # TOTAL ASSETS
     line_row = len(bs_data)
     bs_data.append([
         Paragraph("<strong>TOTAL ASSETS</strong>", style_table_text_bold),
         Paragraph(fmt_acc(total_assets_calc_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(total_assets_calc_pri), style_table_num_bold)
     ])
-    t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
-    t_styles.append(('LINEBELOW', (1, line_row), (2, line_row), 2, colors.black)) # Double line representation in PDF
+    t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
+    t_styles.append(('LINEBELOW', (1, line_row), (1, line_row), 2, colors.black))
+    t_styles.append(('LINEBELOW', (3, line_row), (3, line_row), 2, colors.black))
     
     # LIABILITIES
-    bs_data.append([Paragraph("<strong>LIABILITIES</strong>", style_table_text_bold), "", ""])
+    bs_data.append([Paragraph("<strong>LIABILITIES</strong>", style_table_text_bold), "", "", ""])
     
     # Current Liabilities
     if classified["current_liabilities"]:
-        bs_data.append([Paragraph("<strong>Current Liabilities</strong>", style_table_text_bold), "", ""])
+        bs_data.append([Paragraph("<strong>Current Liabilities</strong>", style_table_text_bold), "", "", ""])
         for x in classified["current_liabilities"]:
             bs_data.append([
                 Paragraph(x["description"], style_table_text_indent),
                 Paragraph(fmt_acc(x["current_year"]), style_table_num),
+                "",
                 Paragraph(fmt_acc(x["prior_year"]), style_table_num)
             ])
         line_row = len(bs_data)
         bs_data.append([
             Paragraph("Total Current Liabilities", style_table_text_bold),
             Paragraph(fmt_acc(cur_liab_sum_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(cur_liab_sum_pri), style_table_num_bold)
         ])
-        t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
     # Long Term Liabilities
     if classified["long_term_liabilities"]:
-        bs_data.append([Paragraph("<strong>Long Term Liabilities</strong>", style_table_text_bold), "", ""])
+        bs_data.append([Paragraph("<strong>Long Term Liabilities</strong>", style_table_text_bold), "", "", ""])
         for x in classified["long_term_liabilities"]:
             bs_data.append([
                 Paragraph(x["description"], style_table_text_indent),
                 Paragraph(fmt_acc(x["current_year"]), style_table_num),
+                "",
                 Paragraph(fmt_acc(x["prior_year"]), style_table_num)
             ])
         line_row = len(bs_data)
         bs_data.append([
             Paragraph("Total Long Term Liabilities", style_table_text_bold),
             Paragraph(fmt_acc(long_liab_sum_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(long_liab_sum_pri), style_table_num_bold)
         ])
-        t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
     # SHAREHOLDER EQUITY
-    bs_data.append([Paragraph("<strong>SHAREHOLDER EQUITY</strong>", style_table_text_bold), "", ""])
+    bs_data.append([Paragraph("<strong>SHAREHOLDER EQUITY</strong>", style_table_text_bold), "", "", ""])
     for x in classified["equity_shares"]:
         bs_data.append([
             Paragraph(x["description"], style_table_text_indent),
             Paragraph(fmt_acc(x["current_year"]), style_table_num),
+            "",
             Paragraph(fmt_acc(x["prior_year"]), style_table_num)
         ])
     bs_data.append([
         Paragraph("Retained Earnings (Deficit)", style_table_text_indent),
         Paragraph(fmt_acc(re_curr), style_table_num),
+        "",
         Paragraph(fmt_acc(re_prior), style_table_num)
     ])
     # Total Equity
@@ -410,21 +430,26 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     bs_data.append([
         Paragraph("Total Shareholder Equity", style_table_text_bold),
         Paragraph(fmt_acc(total_equity_calc_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(total_equity_calc_pri), style_table_num_bold)
     ])
-    t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+    t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
     
     # TOTAL LIABILITIES & EQUITY
     line_row = len(bs_data)
     bs_data.append([
         Paragraph("<strong>TOTAL LIABILITIES & EQUITY</strong>", style_table_text_bold),
         Paragraph(fmt_acc(total_liab_equity_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(total_liab_equity_pri), style_table_num_bold)
     ])
-    t_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
-    t_styles.append(('LINEBELOW', (1, line_row), (2, line_row), 2, colors.black))
+    t_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    t_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
+    t_styles.append(('LINEBELOW', (1, line_row), (1, line_row), 2, colors.black))
+    t_styles.append(('LINEBELOW', (3, line_row), (3, line_row), 2, colors.black))
     
-    bs_table = Table(bs_data, colWidths=[240, 100, 100])
+    bs_table = Table(bs_data, colWidths=[240, 90, 20, 90])
     bs_table.setStyle(TableStyle(t_styles))
     
     story.append(bs_table)
@@ -462,86 +487,102 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     is_data = [
         [Paragraph("<strong>Account Description</strong>", style_table_text_bold), 
          Paragraph("<strong>Current Year</strong>", ParagraphStyle('R_Bold', parent=style_table_num_bold)), 
+         "",
          Paragraph("<strong>Prior Year</strong>", ParagraphStyle('R_Bold', parent=style_table_num_bold))]
     ]
     
     is_styles = [
-        ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
+        ('LINEBELOW', (0,0), (1,0), 1.5, colors.black),
+        ('LINEBELOW', (3,0), (3,0), 1.5, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
         ('TOPPADDING', (0,0), (-1,-1), 4),
     ]
     
     # REVENUE
-    is_data.append([Paragraph("<strong>REVENUE</strong>", style_table_text_bold), "", ""])
+    is_data.append([Paragraph("<strong>REVENUE</strong>", style_table_text_bold), "", "", ""])
     for x in classified["revenues"]:
         is_data.append([
             Paragraph(x["description"], style_table_text_indent),
             Paragraph(fmt_acc(x["current_year"]), style_table_num),
+            "",
             Paragraph(fmt_acc(x["prior_year"]), style_table_num)
         ])
     line_row = len(is_data)
     is_data.append([
         Paragraph("Total Revenue", style_table_text_bold),
         Paragraph(fmt_acc(total_rev_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(total_rev_pri), style_table_num_bold)
     ])
-    is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
     
     # COST OF SALES
     if classified["cost_of_sales"]:
-        is_data.append([Paragraph("<strong>COST OF SALES</strong>", style_table_text_bold), "", ""])
+        is_data.append([Paragraph("<strong>COST OF SALES</strong>", style_table_text_bold), "", "", ""])
         for x in classified["cost_of_sales"]:
             is_data.append([
                 Paragraph(x["description"], style_table_text_indent),
                 Paragraph(fmt_acc(x["current_year"]), style_table_num),
+                "",
                 Paragraph(fmt_acc(x["prior_year"]), style_table_num)
             ])
         line_row = len(is_data)
         is_data.append([
             Paragraph("Total Cost of Sales", style_table_text_bold),
             Paragraph(fmt_acc(total_cogs_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(total_cogs_pri), style_table_num_bold)
         ])
-        is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        is_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        is_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
         line_row = len(is_data)
         is_data.append([
             Paragraph("Gross Profit", style_table_text_bold),
             Paragraph(fmt_acc(gross_profit_cur), style_table_num_bold),
+            "",
             Paragraph(fmt_acc(gross_profit_pri), style_table_num_bold)
         ])
-        is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+        is_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+        is_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
         
     # EXPENSES
-    is_data.append([Paragraph("<strong>OPERATING EXPENSES</strong>", style_table_text_bold), "", ""])
+    is_data.append([Paragraph("<strong>OPERATING EXPENSES</strong>", style_table_text_bold), "", "", ""])
     for x in classified["expenses"]:
         is_data.append([
             Paragraph(x["description"], style_table_text_indent),
             Paragraph(fmt_acc(x["current_year"]), style_table_num),
+            "",
             Paragraph(fmt_acc(x["prior_year"]), style_table_num)
         ])
     line_row = len(is_data)
     is_data.append([
         Paragraph("Total Operating Expenses", style_table_text_bold),
         Paragraph(fmt_acc(total_exp_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(total_exp_pri), style_table_num_bold)
     ])
-    is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
     
     # NET INCOME BEFORE TAX
     line_row = len(is_data)
     is_data.append([
         Paragraph("<strong>NET INCOME BEFORE INCOME TAXES</strong>", style_table_text_bold),
         Paragraph(fmt_acc(net_income_before_tax_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(net_income_before_tax_pri), style_table_num_bold)
     ])
-    is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
     
     # INCOME TAX
     is_data.append([
         Paragraph("Current Income Taxes", style_table_text_indent),
         Paragraph(fmt_acc(tax_cur), style_table_num),
+        "",
         Paragraph(fmt_acc(tax_pri), style_table_num)
     ])
     
@@ -550,14 +591,15 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     is_data.append([
         Paragraph("<strong>NET INCOME (LOSS) FOR THE YEAR</strong>", style_table_text_bold),
         Paragraph(fmt_acc(net_income_after_tax_cur), style_table_num_bold),
+        "",
         Paragraph(fmt_acc(net_income_after_tax_pri), style_table_num_bold)
     ])
-    is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
-    is_styles.append(('LINEBELOW', (1, line_row), (2, line_row), 2, colors.black))
+    is_styles.append(('LINEABOVE', (1, line_row), (1, line_row), 1, colors.black))
+    is_styles.append(('LINEABOVE', (3, line_row), (3, line_row), 1, colors.black))
+    is_styles.append(('LINEBELOW', (1, line_row), (1, line_row), 2, colors.black))
+    is_styles.append(('LINEBELOW', (3, line_row), (3, line_row), 2, colors.black))
     
-
-    
-    is_table = Table(is_data, colWidths=[240, 100, 100])
+    is_table = Table(is_data, colWidths=[240, 90, 20, 90])
     is_table.setStyle(TableStyle(is_styles))
     
     story.append(is_table)

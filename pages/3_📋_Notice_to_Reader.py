@@ -90,19 +90,20 @@ st.markdown("""
     }
     .report-table {
         width: 100%;
-        border-collapse: collapse;
+        border-collapse: separate;
+        border-spacing: 20px 0px;
         margin-top: 30px;
     }
     .report-table th {
         font-size: 14px;
         font-weight: bold;
         border-bottom: 1.5px solid #000;
-        padding: 8px 4px;
+        padding: 8px 0px;
         text-align: left;
     }
     .report-table td {
         font-size: 14px;
-        padding: 6px 4px;
+        padding: 6px 0px;
     }
     .num-col {
         text-align: right;
@@ -725,19 +726,20 @@ Readers are cautioned that these financial statements may not be appropriate for
         }}
         .report-table {{
             width: 100%;
-            border-collapse: collapse;
+            border-collapse: separate;
+            border-spacing: 20px 0px;
             margin-top: 30px;
         }}
         .report-table th {{
             font-size: 14px;
             font-weight: bold;
             border-bottom: 1.5px solid #000;
-            padding: 8px 4px;
+            padding: 8px 0px;
             text-align: left;
         }}
         .report-table td {{
             font-size: 14px;
-            padding: 6px 4px;
+            padding: 6px 0px;
         }}
         .num-col {{
             text-align: right;
