@@ -348,6 +348,24 @@ with col_left:
                     "prior_year": p_val
                 })
                 
+            if classified["current_income_taxes"]:
+                st.markdown("### Income Taxes")
+                item = classified["current_income_taxes"]
+                col_desc, col_cur, col_pri = st.columns([5, 3, 3])
+                with col_desc:
+                    d_val = st.text_input(f"Desc ({item['gifi_code']})", value=item["description"], key=f"desc_{item['gifi_code']}")
+                with col_cur:
+                    c_val = st.number_input(f"Current ({item['gifi_code']})", value=float(item["current_year"]), step=1.0, key=f"cur_{item['gifi_code']}")
+                with col_pri:
+                    p_val = st.number_input(f"Prior ({item['gifi_code']})", value=float(item["prior_year"]), step=1.0, key=f"pri_{item['gifi_code']}")
+                
+                updated_items.append({
+                    "gifi_code": item["gifi_code"],
+                    "description": d_val,
+                    "current_year": c_val,
+                    "prior_year": p_val
+                })
+                
         # Write back updates to session state
         st.session_state.gifi_raw_items = updated_items
 
@@ -583,8 +601,14 @@ Readers are cautioned that these financial statements may not be appropriate for
         total_exp_cur = sum(x["current_year"] for x in classified["expenses"])
         total_exp_pri = sum(x["prior_year"] for x in classified["expenses"])
         
-        net_income_calc_cur = gross_profit_cur - total_exp_cur
-        net_income_calc_pri = gross_profit_pri - total_exp_pri
+        net_income_before_tax_cur = gross_profit_cur - total_exp_cur
+        net_income_before_tax_pri = gross_profit_pri - total_exp_pri
+        
+        tax_cur = sum(x["current_year"] for x in st.session_state.gifi_raw_items if x["gifi_code"] == 9990)
+        tax_pri = sum(x["prior_year"] for x in st.session_state.gifi_raw_items if x["gifi_code"] == 9990)
+        
+        net_income_after_tax_cur = net_income_before_tax_cur - tax_cur
+        net_income_after_tax_pri = net_income_before_tax_pri - tax_pri
         
         # Revenues
         is_rows_html += '<tr><td class="section-header">REVENUE</td><td></td><td></td></tr>'
@@ -606,8 +630,14 @@ Readers are cautioned that these financial statements may not be appropriate for
             is_rows_html += f'<tr><td class="indented-td">{x["description"]}</td><td class="num-col">${x["current_year"]:,.2f}</td><td class="num-col">${x["prior_year"]:,.2f}</td></tr>'
         is_rows_html += f'<tr><td class="indented-td" style="font-weight: bold;">Total Operating Expenses</td><td class="num-col single-under" style="font-weight: bold;">${total_exp_cur:,.2f}</td><td class="num-col single-under" style="font-weight: bold;">${total_exp_pri:,.2f}</td></tr>'
         
-        # Net Income
-        is_rows_html += f'<tr><td class="section-header" style="font-weight: bold;">NET INCOME (LOSS)</td><td class="num-col double-under" style="font-weight: bold;">${net_income_calc_cur:,.2f}</td><td class="num-col double-under" style="font-weight: bold;">${net_income_calc_pri:,.2f}</td></tr>'
+        # Net Income Before Tax
+        is_rows_html += f'<tr><td class="section-header" style="font-weight: bold;">NET INCOME BEFORE INCOME TAXES</td><td class="num-col single-under" style="font-weight: bold;">${net_income_before_tax_cur:,.2f}</td><td class="num-col single-under" style="font-weight: bold;">${net_income_before_tax_pri:,.2f}</td></tr>'
+        
+        # Income Taxes
+        is_rows_html += f'<tr><td class="indented-td">Current Income Taxes (GIFI 9990)</td><td class="num-col">${tax_cur:,.2f}</td><td class="num-col">${tax_pri:,.2f}</td></tr>'
+        
+        # Net Income After Tax
+        is_rows_html += f'<tr><td class="section-header" style="font-weight: bold;">NET INCOME (LOSS) FOR THE YEAR</td><td class="num-col double-under" style="font-weight: bold;">${net_income_after_tax_cur:,.2f}</td><td class="num-col double-under" style="font-weight: bold;">${net_income_after_tax_pri:,.2f}</td></tr>'
 
         # Retained Earnings Reconciliation section
         re_start_cur = sum(x["current_year"] for x in classified["retained_earnings"] if x["gifi_code"] == 3660)
@@ -616,7 +646,7 @@ Readers are cautioned that these financial statements may not be appropriate for
         # Retained Earnings Header
         is_rows_html += '<tr><td class="section-header">RETAINED EARNINGS</td><td></td><td></td></tr>'
         is_rows_html += f'<tr><td class="indented-td">Retained Earnings, Start of Year</td><td class="num-col">${re_start_cur:,.2f}</td><td class="num-col">${re_start_pri:,.2f}</td></tr>'
-        is_rows_html += f'<tr><td class="indented-td">Add: Net Income (Loss)</td><td class="num-col">${net_income_calc_cur:,.2f}</td><td class="num-col">${net_income_calc_pri:,.2f}</td></tr>'
+        is_rows_html += f'<tr><td class="indented-td">Add: Net Income (Loss) for the year</td><td class="num-col">${net_income_after_tax_cur:,.2f}</td><td class="num-col">${net_income_after_tax_pri:,.2f}</td></tr>'
         is_rows_html += f'<tr><td class="indented-td" style="font-weight: bold;">Retained Earnings, End of Year</td><td class="num-col double-under" style="font-weight: bold;">${re_curr:,.2f}</td><td class="num-col double-under" style="font-weight: bold;">${re_prior:,.2f}</td></tr>'
 
         st.markdown(f"""

@@ -446,8 +446,17 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     total_exp_cur = sum(x["current_year"] for x in classified["expenses"])
     total_exp_pri = sum(x["prior_year"] for x in classified["expenses"])
     
-    net_income_calc_cur = gross_profit_cur - total_exp_cur
-    net_income_calc_pri = gross_profit_pri - total_exp_pri
+    net_income_before_tax_cur = gross_profit_cur - total_exp_cur
+    net_income_before_tax_pri = gross_profit_pri - total_exp_pri
+    
+    tax_cur = 0.0
+    tax_pri = 0.0
+    if classified.get("current_income_taxes"):
+        tax_cur = classified["current_income_taxes"]["current_year"]
+        tax_pri = classified["current_income_taxes"]["prior_year"]
+        
+    net_income_after_tax_cur = net_income_before_tax_cur - tax_cur
+    net_income_after_tax_pri = net_income_before_tax_pri - tax_pri
     
     is_data = [
         [Paragraph("<strong>Account Description</strong>", style_table_text_bold), 
@@ -519,12 +528,28 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     ])
     is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
     
-    # NET INCOME
+    # NET INCOME BEFORE TAX
     line_row = len(is_data)
     is_data.append([
-        Paragraph("<strong>NET INCOME (LOSS)</strong>", style_table_text_bold),
-        Paragraph(fmt_acc(net_income_calc_cur), style_table_num_bold),
-        Paragraph(fmt_acc(net_income_calc_pri), style_table_num_bold)
+        Paragraph("<strong>NET INCOME BEFORE INCOME TAXES</strong>", style_table_text_bold),
+        Paragraph(fmt_acc(net_income_before_tax_cur), style_table_num_bold),
+        Paragraph(fmt_acc(net_income_before_tax_pri), style_table_num_bold)
+    ])
+    is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
+    
+    # INCOME TAX
+    is_data.append([
+        Paragraph("Current Income Taxes (GIFI 9990)", style_table_text_indent),
+        Paragraph(fmt_acc(tax_cur), style_table_num),
+        Paragraph(fmt_acc(tax_pri), style_table_num)
+    ])
+    
+    # NET INCOME AFTER TAX
+    line_row = len(is_data)
+    is_data.append([
+        Paragraph("<strong>NET INCOME (LOSS) FOR THE YEAR</strong>", style_table_text_bold),
+        Paragraph(fmt_acc(net_income_after_tax_cur), style_table_num_bold),
+        Paragraph(fmt_acc(net_income_after_tax_pri), style_table_num_bold)
     ])
     is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
     is_styles.append(('LINEBELOW', (1, line_row), (2, line_row), 2, colors.black))
@@ -540,9 +565,9 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         Paragraph(fmt_acc(re_start_pri), style_table_num)
     ])
     is_data.append([
-        Paragraph("Add: Net Income (Loss)", style_table_text_indent),
-        Paragraph(fmt_acc(net_income_calc_cur), style_table_num),
-        Paragraph(fmt_acc(net_income_calc_pri), style_table_num)
+        Paragraph("Add: Net Income (Loss) for the year", style_table_text_indent),
+        Paragraph(fmt_acc(net_income_after_tax_cur), style_table_num),
+        Paragraph(fmt_acc(net_income_after_tax_pri), style_table_num)
     ])
     line_row = len(is_data)
     is_data.append([
