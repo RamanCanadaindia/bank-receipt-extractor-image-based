@@ -166,7 +166,7 @@ with col_left:
     config_card = st.container(border=True)
     with config_card:
         st.markdown("**Report Parameters**")
-        compiler_name = st.text_input("Accountant / Compiler Firm Name", value="Raman Canada Financial Services")
+        compiler_name = st.text_input("Accountant / Compiler Firm Name", value="")
         compilation_date_str = st.text_input("Report Wording Date", value=datetime.today().strftime('%B %d, %Y'))
         
         report_type = st.selectbox(
@@ -495,8 +495,8 @@ Readers are cautioned that these financial statements may not be appropriate for
             <div class="letter-text">To the Management of {meta.get('corporation_name', '[Company Name]')}:</div>
             <div class="letter-text">{letter_body}</div>
             <div class="letter-text" style="margin-top: 50px;">
-                <strong>{compiler_name}</strong><br/>
-                Chartered Professional Accountants (or Compiler)<br/>
+                {f"<strong>{compiler_name}</strong><br/>" if compiler_name else ""}
+                {f"Chartered Professional Accountants (or Compiler)<br/>" if compiler_name else ""}
                 {compilation_date_str}
             </div>
         </div>
@@ -788,8 +788,8 @@ Readers are cautioned that these financial statements may not be appropriate for
         <div class="letter-text">To the Management of {meta.get('corporation_name', 'Company')}:</div>
         <div class="letter-text" style="white-space: pre-line;">{letter_body}</div>
         <div class="letter-text" style="margin-top: 60px;">
-            <strong>{compiler_name}</strong><br/>
-            Chartered Professional Accountants (or Compiler)<br/>
+            {"<strong>" + compiler_name + "</strong><br/>" if compiler_name else ""}
+            {"Chartered Professional Accountants (or Compiler)<br/>" if compiler_name else ""}
             {compilation_date_str}
         </div>
     </div>

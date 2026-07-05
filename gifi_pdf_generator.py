@@ -206,8 +206,9 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         story.append(Paragraph(paragraph_text, style_body))
         
     story.append(Spacer(1, 40))
-    story.append(Paragraph(f"<strong>{compiler_name}</strong>", style_body))
-    story.append(Paragraph("Chartered Professional Accountants (or Compiler)", style_body))
+    if compiler_name:
+        story.append(Paragraph(f"<strong>{compiler_name}</strong>", style_body))
+        story.append(Paragraph("Chartered Professional Accountants (or Compiler)", style_body))
     story.append(Paragraph(compilation_date, style_body))
     story.append(PageBreak())
     
