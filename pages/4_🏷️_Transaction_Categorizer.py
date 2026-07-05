@@ -298,7 +298,7 @@ if uploaded_file is not None:
             st.write("")
             
             # Layout Visuals & Table Tabs
-            tab_vis, tab_tbl = st.tabs(["📊 Spending Visuals", "📋 Transaction Editor"])
+            tab_vis, tab_tbl, tab_cat = st.tabs(["📊 Spending Visuals", "📋 Transaction Editor", "📂 Transactions by Category"])
             
             with tab_vis:
                 # Spend by category breakdown
@@ -377,6 +377,32 @@ if uploaded_file is not None:
                         st.success(f"🎉 Saved {saved_count} merchant rules! The app will remember these mappings in the future.")
                     else:
                         st.info("No manual changes detected. All transactions match current rules!")
+                
+            with tab_cat:
+                st.subheader("Filter Transactions by Category")
+                unique_cats_in_data = sorted(df_proc['category'].dropna().unique())
+                if unique_cats_in_data:
+                    selected_filter_cat = st.selectbox(
+                        "Select Category to View Details",
+                        unique_cats_in_data,
+                        key="filter_cat_selector_cat"
+                    )
+                    df_filtered = df_proc[df_proc['category'] == selected_filter_cat]
+                    
+                    cat_spend = pd.to_numeric(df_filtered['debit'], errors='coerce').fillna(0).sum()
+                    cat_income = pd.to_numeric(df_filtered['credit'], errors='coerce').fillna(0).sum()
+                    
+                    col_c1, col_c2, col_c3 = st.columns(3)
+                    with col_c1:
+                        st.metric("Total Transactions", len(df_filtered))
+                    with col_c2:
+                        st.metric("Total Spending (Debits)", f"${cat_spend:,.2f}")
+                    with col_c3:
+                        st.metric("Total Deposits (Credits)", f"${cat_income:,.2f}")
+                        
+                    st.dataframe(df_filtered[['date', 'description', 'debit', 'credit', 'balance', 'gifi_code', 'gst_rate']], use_container_width=True)
+                else:
+                    st.info("No categorized transactions available to filter.")
                 
             # Download actions
             csv_dl = df_edited.to_csv(index=False)
