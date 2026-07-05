@@ -250,6 +250,8 @@ with col_left:
                                             meta_info["corporation_name"] = page_data["corporation_name"]
                                             meta_info["business_number"] = page_data.get("business_number", "")
                                             meta_info["tax_year_end"] = page_data.get("tax_year_end", "")
+                                    else:
+                                        st.sidebar.error(f"⚠️ Page {page_num} extraction returned no data. Check console logs.")
                                 except Exception as e:
                                     st.warning(f"Error extracting page {page_num}: {e}")
                                     
