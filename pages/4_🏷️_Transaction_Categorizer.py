@@ -139,19 +139,28 @@ if uploaded_file is not None:
     df_raw = None
     file_ext = os.path.splitext(uploaded_file.name)[1].lower()
     
-    with st.spinner("Reading file..."):
-        if file_ext == ".csv":
-            try:
-                df_raw = pd.read_csv(uploaded_file)
-            except Exception as e:
-                st.error(f"Error reading CSV: {e}")
-        elif file_ext in (".xlsx", ".xls"):
-            try:
-                df_raw = pd.read_excel(uploaded_file)
-            except Exception as e:
-                st.error(f"Error reading Excel: {e}")
-        elif file_ext == ".pdf":
-            df_raw = extract_pdf_table(uploaded_file)
+    if file_ext in (".xlsx", ".xls"):
+        try:
+            xl = pd.ExcelFile(uploaded_file)
+            sheet_names = xl.sheet_names
+            if len(sheet_names) > 1:
+                selected_sheet = st.selectbox("📂 Select Excel Tab / Sheet", sheet_names)
+            else:
+                selected_sheet = sheet_names[0]
+                
+            with st.spinner(f"Reading sheet '{selected_sheet}'..."):
+                df_raw = xl.parse(selected_sheet)
+        except Exception as e:
+            st.error(f"Error reading Excel file sheets: {e}")
+    else:
+        with st.spinner("Reading file..."):
+            if file_ext == ".csv":
+                try:
+                    df_raw = pd.read_csv(uploaded_file)
+                except Exception as e:
+                    st.error(f"Error reading CSV: {e}")
+            elif file_ext == ".pdf":
+                df_raw = extract_pdf_table(uploaded_file)
 
     if df_raw is not None:
         st.success(f"Loaded file with {len(df_raw)} rows.")
@@ -280,6 +289,9 @@ if uploaded_file is not None:
                 
                 # Make clean columns order
                 cols_order = ['date', 'description', 'debit', 'credit', 'category', 'gifi_code', 'gst_rate']
+                for col in cols_order:
+                    if col not in df_editor_display.columns:
+                        df_editor_display[col] = ""
                 df_editor_display = df_editor_display[cols_order]
                 
                 df_edited = st.data_editor(
