@@ -1,5 +1,6 @@
 import io
 from datetime import datetime
+import report_config
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -162,7 +163,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story.append(Spacer(1, 100))
     story.append(Paragraph("FINANCIAL STATEMENTS", style_cover_title))
     story.append(Spacer(1, 30))
-    story.append(Paragraph("Compiled for", style_cover_sub))
+    story.append(Paragraph("Financial Statements", style_cover_sub))
     story.append(Paragraph(meta.get("corporation_name", "Corporation").upper(), style_cover_company))
     story.append(Paragraph(f"Business Number: {meta.get('business_number', 'N/A')}", style_cover_sub))
     story.append(Spacer(1, 100))
@@ -180,35 +181,19 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story.append(Paragraph("(Unaudited)", style_cover_sub))
     story.append(PageBreak())
     
-    # ------------------ PAGE 2: COMPILATION REPORT ------------------
-    if "CSRS 4200" in report_type:
-        report_title_header = "COMPILATION REPORT"
-        letter_body = [
-            f"To the Management of {meta.get('corporation_name', 'Corporation')}:",
-            f"On the basis of information provided by management, we have compiled the balance sheet of {meta.get('corporation_name', 'Corporation')} as at {tax_year_end_display}, and the statements of income and retained earnings for the year then ended.",
-            "We have performed a compilation engagement in accordance with Canadian Standard on Related Services (CSRS) 4200, Compilation Engagements, which requires us to comply with relevant ethical requirements. Our responsibility is to assist management in preparing the financial statements.",
-            "We have not performed an audit or a review engagement in respect of these financial statements and, accordingly, we express no assurance, opinion, or conclusion on them.",
-            "Readers are cautioned that these financial statements may not be appropriate for their purposes."
-        ]
-    else:
-        report_title_header = "NOTICE TO READER"
-        letter_body = [
-            f"To the Management of {meta.get('corporation_name', 'Corporation')}:",
-            f"On the basis of information provided by management, we have compiled the balance sheet of {meta.get('corporation_name', 'Corporation')} as at {tax_year_end_display} and the statements of income and retained earnings for the year then ended.",
-            "We have not performed an audit or a review engagement in respect of these financial statements and, accordingly, we express no assurance, opinion, or conclusion on them.",
-            "Readers are cautioned that these financial statements may not be appropriate for their purposes."
-        ]
-        
+    # ------------------ PAGE 2: NOTICE TO READER ------------------
+    report_title_header = "NOTICE TO READER"
+    
     story.append(Spacer(1, 20))
     story.append(Paragraph(report_title_header, ParagraphStyle('RepTitle', parent=styles['Normal'], fontName='Times-Bold', fontSize=14, leading=18, alignment=1, spaceAfter=30)))
     
-    for paragraph_text in letter_body:
-        story.append(Paragraph(paragraph_text, style_body))
+    for block in report_config.NOTICE_TO_READER_TEXT.split("\n\n"):
+        story.append(Paragraph(block, style_body))
+        story.append(Spacer(1, 10))
         
-    story.append(Spacer(1, 40))
+    story.append(Spacer(1, 30))
     if compiler_name:
         story.append(Paragraph(f"<strong>{compiler_name}</strong>", style_body))
-        story.append(Paragraph("Chartered Professional Accountants (or Compiler)", style_body))
     story.append(Paragraph(compilation_date, style_body))
     story.append(PageBreak())
     
@@ -612,13 +597,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story.append(Spacer(1, 20))
     story.append(Paragraph("<strong>NOTE 1: BASIS OF ACCOUNTING</strong>", ParagraphStyle('NoteHead', parent=styles['Normal'], fontName='Times-Bold', fontSize=11, spaceAfter=8)))
     
-    if "Income Tax" in basis_of_accounting:
-        note_text = "The company prepares its financial statements on the income tax basis. Under this basis, revenues and expenses are recognized in accordance with the rules of the Income Tax Act (Canada) for determining corporate taxable income."
-    elif "Cash" in basis_of_accounting:
-        note_text = "The company prepares its financial statements on the cash basis. Under this basis, revenues are recognized when cash is received and expenses are recorded when payments are made."
-    else:
-        note_text = "The company prepares its financial statements on the historical cost basis. Assets are recorded at the cost of acquisition and no adjustments are made for changing price levels."
-        
+    note_text = report_config.NOTE_1_TEXT
     story.append(Paragraph(note_text, style_body))
     
     # Build Document

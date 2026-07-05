@@ -12,6 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auth
 import extract_statement
 import gifi_extractor
+import report_config
 
 # Page authentication check
 if not auth.check_password():
@@ -170,22 +171,9 @@ with col_left:
         compiler_name = st.text_input("Accountant / Compiler Firm Name", value="")
         compilation_date_str = st.text_input("Report Wording Date", value=datetime.today().strftime('%B %d, %Y'))
         
-        report_type = st.selectbox(
-            "Compilation Standard",
-            [
-                "Compilation Report (CSRS 4200 - Modern Standard)",
-                "Notice to Reader (Section 9200 - Traditional Standard)"
-            ]
-        )
-        
-        basis_of_accounting = st.selectbox(
-            "Note 1: Basis of Accounting",
-            [
-                "Income Tax Basis (Prepared in accordance with Canadian income tax requirements)",
-                "Cash Basis (Prepared solely from cash transactions)",
-                "Historical Cost Basis (Prepared using traditional cost conventions)"
-            ]
-        )
+        # Defined statically to support backward-compatible PDF helper calls
+        report_type = "Notice to Reader"
+        basis_of_accounting = "Income Tax Basis"
 
     # 2. File Upload & Processing
     api_key = st.sidebar.text_input(
@@ -451,31 +439,10 @@ with col_right:
     except Exception:
         tax_year_end_display = tax_year_end_formatted
 
-    # Select Letter Body Wording
-    if "CSRS 4200" in report_type:
-        report_title_header = "COMPILATION REPORT"
-        letter_body = f"""On the basis of information provided by management, we have compiled the balance sheet of {meta.get('corporation_name', '[Company Name]')} as at {tax_year_end_display}, and the statements of income and retained earnings for the year then ended.
-        
-We have performed a compilation engagement in accordance with Canadian Standard on Related Services (CSRS) 4200, Compilation Engagements, which requires us to comply with relevant ethical requirements. Our responsibility is to assist management in preparing the financial statements.
-        
-We have not performed an audit or a review engagement in respect of these financial statements and, accordingly, we express no assurance, opinion, or conclusion on them.
-        
-Readers are cautioned that these financial statements may not be appropriate for their purposes."""
-    else:
-        report_title_header = "NOTICE TO READER"
-        letter_body = f"""On the basis of information provided by management, we have compiled the balance sheet of {meta.get('corporation_name', '[Company Name]')} as at {tax_year_end_display} and the statements of income and retained earnings for the year then ended.
-        
-We have not performed an audit or a review engagement in respect of these financial statements and, accordingly, we express no assurance, opinion, or conclusion on them.
-        
-Readers are cautioned that these financial statements may not be appropriate for their purposes."""
-
-    # Note 1 definition based on selection
-    if "Income Tax" in basis_of_accounting:
-        note_text = "The company prepares its financial statements on the income tax basis. Under this basis, revenues and expenses are recognized in accordance with the rules of the Income Tax Act (Canada) for determining corporate taxable income."
-    elif "Cash" in basis_of_accounting:
-        note_text = "The company prepares its financial statements on the cash basis. Under this basis, revenues are recognized when cash is received and expenses are recorded when payments are made."
-    else:
-        note_text = "The company prepares its financial statements on the historical cost basis. Assets are recorded at the cost of acquisition and no adjustments are made for changing price levels."
+    # Select Letter Wording dynamically from config
+    report_title_header = "NOTICE TO READER"
+    letter_body = report_config.NOTICE_TO_READER_TEXT
+    note_text = report_config.NOTE_1_TEXT
 
     # Render Preview Pages inside Container tabs
     tab_p1, tab_p2, tab_p3, tab_p4, tab_p5 = st.tabs(["📄 Cover Page", "✉️ Letter", "⚖️ Balance Sheet", "📊 Income Statement", "📝 Notes"])
@@ -484,7 +451,7 @@ Readers are cautioned that these financial statements may not be appropriate for
         st.markdown(f"""
         <div class="page-preview">
             <div class="report-title">Financial Statements</div>
-            <div class="report-subtitle">Compiled for</div>
+            <div class="report-subtitle">Financial Statements</div>
             <div class="company-name">{meta.get('corporation_name', '[Company Name]')}</div>
             <div class="report-subtitle" style="margin-top: 10px;">Business Number: {meta.get('business_number', 'N/A')}</div>
             <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
@@ -495,11 +462,9 @@ Readers are cautioned that these financial statements may not be appropriate for
         st.markdown(f"""
         <div class="page-preview">
             <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 30px;">{report_title_header}</div>
-            <div class="letter-text">To the Management of {meta.get('corporation_name', '[Company Name]')}:</div>
-            <div class="letter-text">{letter_body}</div>
+            <div class="letter-text" style="white-space: pre-line;">{letter_body}</div>
             <div class="letter-text" style="margin-top: 50px;">
                 {f"<strong>{compiler_name}</strong><br/>" if compiler_name else ""}
-                {f"Chartered Professional Accountants (or Compiler)<br/>" if compiler_name else ""}
                 {compilation_date_str}
             </div>
         </div>
@@ -770,7 +735,7 @@ Readers are cautioned that these financial statements may not be appropriate for
     <!-- Page 1: Cover Page -->
     <div class="page">
         <div class="report-title">Financial Statements</div>
-        <div class="report-subtitle">Compiled for</div>
+        <div class="report-subtitle">Financial Statements</div>
         <div class="company-name">{meta.get('corporation_name', 'Company')}</div>
         <div class="report-subtitle" style="margin-top: 10px;">Business Number: {meta.get('business_number', 'N/A')}</div>
         <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
@@ -779,11 +744,9 @@ Readers are cautioned that these financial statements may not be appropriate for
     <!-- Page 2: Letter -->
     <div class="page">
         <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 40px;">{report_title_header}</div>
-        <div class="letter-text">To the Management of {meta.get('corporation_name', 'Company')}:</div>
         <div class="letter-text" style="white-space: pre-line;">{letter_body}</div>
         <div class="letter-text" style="margin-top: 60px;">
             {"<strong>" + compiler_name + "</strong><br/>" if compiler_name else ""}
-            {"Chartered Professional Accountants (or Compiler)<br/>" if compiler_name else ""}
             {compilation_date_str}
         </div>
     </div>
