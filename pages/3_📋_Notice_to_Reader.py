@@ -639,20 +639,10 @@ Readers are cautioned that these financial statements may not be appropriate for
         # Net Income After Tax
         is_rows_html += f'<tr><td class="section-header" style="font-weight: bold;">NET INCOME (LOSS) FOR THE YEAR</td><td class="num-col double-under" style="font-weight: bold;">${net_income_after_tax_cur:,.2f}</td><td class="num-col double-under" style="font-weight: bold;">${net_income_after_tax_pri:,.2f}</td></tr>'
 
-        # Retained Earnings Reconciliation section
-        re_start_cur = sum(x["current_year"] for x in classified["retained_earnings"] if x["gifi_code"] == 3660)
-        re_start_pri = sum(x["prior_year"] for x in classified["retained_earnings"] if x["gifi_code"] == 3660)
-        
-        # Retained Earnings Header
-        is_rows_html += '<tr><td class="section-header">RETAINED EARNINGS</td><td></td><td></td></tr>'
-        is_rows_html += f'<tr><td class="indented-td">Retained Earnings, Start of Year</td><td class="num-col">${re_start_cur:,.2f}</td><td class="num-col">${re_start_pri:,.2f}</td></tr>'
-        is_rows_html += f'<tr><td class="indented-td">Add: Net Income (Loss) for the year</td><td class="num-col">${net_income_after_tax_cur:,.2f}</td><td class="num-col">${net_income_after_tax_pri:,.2f}</td></tr>'
-        is_rows_html += f'<tr><td class="indented-td" style="font-weight: bold;">Retained Earnings, End of Year</td><td class="num-col double-under" style="font-weight: bold;">${re_curr:,.2f}</td><td class="num-col double-under" style="font-weight: bold;">${re_prior:,.2f}</td></tr>'
-
         st.markdown(f"""
         <div class="page-preview">
             <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px;">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement & Retained Earnings Reconciliation<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
+            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
             <table class="report-table">
                 <thead>
                     <tr>
@@ -816,7 +806,7 @@ Readers are cautioned that these financial statements may not be appropriate for
     <!-- Page 4: Income Statement -->
     <div class="page">
         <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px;">{meta.get('corporation_name', 'Company')}</div>
-        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement & Retained Earnings Reconciliation<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
+        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
         <table class="report-table">
             <thead>
                 <tr>

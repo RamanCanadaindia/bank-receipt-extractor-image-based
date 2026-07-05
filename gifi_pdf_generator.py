@@ -433,7 +433,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     
     # ------------------ PAGE 4: INCOME STATEMENT ------------------
     story.append(Paragraph(meta.get("corporation_name", "Corporation").upper(), style_header_name))
-    story.append(Paragraph(f"Income Statement & Retained Earnings Reconciliation<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)", style_header_sub))
+    story.append(Paragraph(f"Income Statement<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)", style_header_sub))
     
     total_rev_cur = sum(x["current_year"] for x in classified["revenues"])
     total_rev_pri = sum(x["prior_year"] for x in classified["revenues"])
@@ -555,29 +555,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
     is_styles.append(('LINEBELOW', (1, line_row), (2, line_row), 2, colors.black))
     
-    # RETAINED EARNINGS RECONCILIATION
-    re_start_cur = sum(x["current_year"] for x in classified["retained_earnings"] if x["gifi_code"] == 3660)
-    re_start_pri = sum(x["prior_year"] for x in classified["retained_earnings"] if x["gifi_code"] == 3660)
-    
-    is_data.append([Paragraph("<strong>RETAINED EARNINGS</strong>", style_table_text_bold), "", ""])
-    is_data.append([
-        Paragraph("Retained Earnings, Start of Year", style_table_text_indent),
-        Paragraph(fmt_acc(re_start_cur), style_table_num),
-        Paragraph(fmt_acc(re_start_pri), style_table_num)
-    ])
-    is_data.append([
-        Paragraph("Add: Net Income (Loss) for the year", style_table_text_indent),
-        Paragraph(fmt_acc(net_income_after_tax_cur), style_table_num),
-        Paragraph(fmt_acc(net_income_after_tax_pri), style_table_num)
-    ])
-    line_row = len(is_data)
-    is_data.append([
-        Paragraph("Retained Earnings, End of Year", style_table_text_bold),
-        Paragraph(fmt_acc(re_curr), style_table_num_bold),
-        Paragraph(fmt_acc(re_prior), style_table_num_bold)
-    ])
-    is_styles.append(('LINEABOVE', (1, line_row), (2, line_row), 1, colors.black))
-    is_styles.append(('LINEBELOW', (1, line_row), (2, line_row), 2, colors.black))
+
     
     is_table = Table(is_data, colWidths=[240, 100, 100])
     is_table.setStyle(TableStyle(is_styles))
