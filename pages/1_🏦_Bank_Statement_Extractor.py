@@ -13,6 +13,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import extract_statement
 import auth
+import categorizer
 
 # Set page config for premium styling
 st.set_page_config(
@@ -114,6 +115,12 @@ st.sidebar.info("""
 uploaded_file = st.file_uploader("Upload your Bank Statement PDF", type=["pdf"])
 
 if uploaded_file is not None:
+    # Clear session state if file changes
+    file_key = f"file_{uploaded_file.name}_{uploaded_file.size}"
+    if "current_file_key" not in st.session_state or st.session_state.current_file_key != file_key:
+        st.session_state.bank_transactions = []
+        st.session_state.current_file_key = file_key
+
     # Determine extraction mode
     text_pages = []
     is_digital = False
@@ -202,89 +209,118 @@ if uploaded_file is not None:
                     transactions, sort_chronologically=sort_chronologically
                 )
             
-            # Convert to Pandas DataFrame
-            df = pd.DataFrame(validated_txs)
-            
-            # Reorder and format columns
-            df['date'] = pd.to_datetime(df['date'])
-            if sort_chronologically:
-                df = df.sort_values(by='date').reset_index(drop=True)
-            else:
-                df = df.reset_index(drop=True)
-            
-            # Metrics Calculation
-            total_debits = df['debit'].fillna(0).sum()
-            total_credits = df['credit'].fillna(0).sum()
-            opening_bal = df.iloc[0]['balance'] + df.iloc[0]['debit'] - df.iloc[0]['credit'] if (pd.notna(df.iloc[0]['debit']) or pd.notna(df.iloc[0]['credit'])) else df.iloc[0]['balance']
-            closing_bal = df.iloc[-1]['balance']
-            net_flow = total_credits - total_debits
-            
-            # Layout metric cards
-            st.success("🎉 Extraction and mathematical validation complete!")
-            
-            col1, col2, col3, col4, col5 = st.columns(5)
-            with col1:
-                st.markdown(f'<div class="metric-card"><div class="metric-value">${opening_bal:,.2f}</div><div class="metric-label">Opening Balance</div></div>', unsafe_allow_html=True)
-            with col2:
-                st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: #ea4335;">${total_debits:,.2f}</div><div class="metric-label">Total Withdrawals</div></div>', unsafe_allow_html=True)
-            with col3:
-                st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: #34a853;">${total_credits:,.2f}</div><div class="metric-label">Total Deposits</div></div>', unsafe_allow_html=True)
-            with col4:
-                flow_color = "#34a853" if net_flow >= 0 else "#ea4335"
-                st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: {flow_color};">${net_flow:,.2f}</div><div class="metric-label">Net Monthly Flow</div></div>', unsafe_allow_html=True)
-            with col5:
-                st.markdown(f'<div class="metric-card"><div class="metric-value">${closing_bal:,.2f}</div><div class="metric-label">Closing Balance</div></div>', unsafe_allow_html=True)
-            
-            st.write("")
-            
-            # Layout visual tabs
-            tab1, tab2 = st.tabs(["📊 Financial Visuals", "📋 Transaction Table"])
-            
-            with tab1:
-                col_plot1, col_plot2 = st.columns(2)
-                
-                with col_plot1:
-                    st.subheader("Balance Trend Over Time")
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    sns.lineplot(data=df, x='date', y='balance', marker='o', ax=ax, color='#1f77b4', linewidth=2)
-                    ax.set_title("Running Account Balance History")
-                    ax.set_xlabel("Date")
-                    ax.set_ylabel("Balance ($)")
-                    plt.xticks(rotation=45)
-                    st.pyplot(fig)
-                    
-                with col_plot2:
-                    st.subheader("Monthly Debits vs Credits")
-                    df_monthly = df.copy()
-                    df_monthly['month'] = df_monthly['date'].dt.to_period('M').astype(str)
-                    grouped_monthly = df_monthly.groupby('month')[['debit', 'credit']].sum().reset_index()
-                    
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    df_melted = pd.melt(grouped_monthly, id_vars=['month'], value_vars=['debit', 'credit'], 
-                                        var_name='Type', value_name='Amount')
-                    sns.barplot(data=df_melted, x='month', y='Amount', hue='Type', ax=ax, palette=['#ea4335', '#34a853'])
-                    ax.set_title("Total Withdrawals (Debits) vs Deposits (Credits)")
-                    ax.set_xlabel("Month")
-                    ax.set_ylabel("Amount ($)")
-                    st.pyplot(fig)
-                    
-            with tab2:
-                st.subheader("Extracted Transaction History")
-                # Make columns pretty
-                df_display = df.copy()
-                df_display['date'] = df_display['date'].dt.strftime('%Y-%m-%d')
-                df_display['debit'] = df_display['debit'].map(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
-                df_display['credit'] = df_display['credit'].map(lambda x: f"${x:,.2f}" if pd.notna(x) else "")
-                df_display['balance'] = df_display['balance'].map(lambda x: f"${x:,.2f}")
-                st.dataframe(df_display, use_container_width=True)
-                
-            # Download CSV button
-            csv_data = df.to_csv(index=False)
-            st.download_button(
-                label="📥 Download Transactions as CSV",
-                data=csv_data,
-                file_name="extracted_bank_transactions.csv",
-                mime="text/csv"
-            )
+            with st.spinner("Auto-categorizing transactions..."):
+                # Run auto-categorization helper
+                categorized_txs = categorizer.categorize_transactions(api_key, validated_txs)
+                st.session_state.bank_transactions = categorized_txs
+                st.success("🎉 Extraction, validation, and categorization complete!")
         else:
             st.warning("⚠️ No transactions could be extracted from the file.")
+
+    # Now render dashboard if transactions are loaded in session state
+    if "bank_transactions" in st.session_state and st.session_state.bank_transactions:
+        df = pd.DataFrame(st.session_state.bank_transactions)
+        
+        # Ensure date is parsed
+        df['date'] = pd.to_datetime(df['date'])
+        if sort_chronologically:
+            df = df.sort_values(by='date').reset_index(drop=True)
+        else:
+            df = df.reset_index(drop=True)
+            
+        # Metrics Calculation
+        total_debits = df['debit'].fillna(0).sum()
+        total_credits = df['credit'].fillna(0).sum()
+        opening_bal = df.iloc[0]['balance'] + df.iloc[0]['debit'] - df.iloc[0]['credit'] if (pd.notna(df.iloc[0]['debit']) or pd.notna(df.iloc[0]['credit'])) else df.iloc[0]['balance']
+        closing_bal = df.iloc[-1]['balance']
+        net_flow = total_credits - total_debits
+        
+        # Layout metric cards
+        col1, col2, col3, col4, col5 = st.columns(5)
+        with col1:
+            st.markdown(f'<div class="metric-card"><div class="metric-value">${opening_bal:,.2f}</div><div class="metric-label">Opening Balance</div></div>', unsafe_allow_html=True)
+        with col2:
+            st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: #ea4335;">${total_debits:,.2f}</div><div class="metric-label">Total Withdrawals</div></div>', unsafe_allow_html=True)
+        with col3:
+            st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: #34a853;">${total_credits:,.2f}</div><div class="metric-label">Total Deposits</div></div>', unsafe_allow_html=True)
+        with col4:
+            flow_color = "#34a853" if net_flow >= 0 else "#ea4335"
+            st.markdown(f'<div class="metric-card"><div class="metric-value" style="color: {flow_color};">${net_flow:,.2f}</div><div class="metric-label">Net Monthly Flow</div></div>', unsafe_allow_html=True)
+        with col5:
+            st.markdown(f'<div class="metric-card"><div class="metric-value">${closing_bal:,.2f}</div><div class="metric-label">Closing Balance</div></div>', unsafe_allow_html=True)
+        
+        st.write("")
+        
+        # Layout visual tabs
+        tab1, tab2 = st.tabs(["📊 Financial Visuals", "📋 Transaction Table"])
+        
+        with tab1:
+            col_plot1, col_plot2 = st.columns(2)
+            
+            with col_plot1:
+                st.subheader("Balance Trend Over Time")
+                fig, ax = plt.subplots(figsize=(10, 5))
+                sns.lineplot(data=df, x='date', y='balance', marker='o', ax=ax, color='#1f77b4', linewidth=2)
+                ax.set_title("Running Account Balance History")
+                ax.set_xlabel("Date")
+                ax.set_ylabel("Balance ($)")
+                plt.xticks(rotation=45)
+                st.pyplot(fig)
+                
+            with col_plot2:
+                st.subheader("Spending Breakdown by Category")
+                # Group non-deposits by category
+                df_expenses = df[df["debit"] > 0]
+                if not df_expenses.empty:
+                    df_cat = df_expenses.groupby("category")["debit"].sum().reset_index()
+                    df_cat = df_cat.sort_values(by="debit", ascending=False)
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    sns.barplot(data=df_cat, x="debit", y="category", ax=ax, palette="viridis")
+                    ax.set_title("Total Spend per Category")
+                    ax.set_xlabel("Spend ($)")
+                    ax.set_ylabel("Category")
+                    st.pyplot(fig)
+                else:
+                    st.info("No expense (debit) transactions found to categorize.")
+                    
+        with tab2:
+            st.subheader("Extracted Transaction History")
+            st.markdown("*Double-click a category cell to edit/reassign categories directly!*")
+            
+            # Interactive data editor
+            # Ensure columns are formatted nicely but preserve underlying data types
+            df_display = df.copy()
+            df_display['date'] = df_display['date'].dt.strftime('%Y-%m-%d')
+            
+            df_edited = st.data_editor(
+                df_display,
+                column_config={
+                    "category": st.column_config.SelectboxColumn(
+                        "Category",
+                        help="Select standard business tax category",
+                        width="medium",
+                        options=[
+                            "Advertising & Marketing", "Automotive & Travel", "Office Expenses",
+                            "Meals & Entertainment", "Professional Fees", "Rent & Utilities",
+                            "Insurance", "Subcontractors & Labor", "Bank Fees & Interest",
+                            "Taxes & Licenses", "Revenue / Deposits", "Groceries", "Other Expenses"
+                        ],
+                        required=True,
+                    )
+                },
+                disabled=["date", "description", "debit", "credit", "balance"],
+                use_container_width=True,
+                key="editor_key"
+            )
+            
+            # Write back edits to session state if changed
+            st.session_state.bank_transactions = df_edited.to_dict('records')
+            
+        # Download CSV button
+        csv_data = df_edited.to_csv(index=False)
+        st.download_button(
+            label="📥 Download Transactions as CSV",
+            data=csv_data,
+            file_name="extracted_bank_transactions.csv",
+            mime="text/csv"
+        )
