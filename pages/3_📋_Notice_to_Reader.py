@@ -431,6 +431,19 @@ with col_right:
         if balance_mismatch_cur > 1.0:
             st.warning(f"⚠️ Balance Sheet Mismatch (Current Year): Assets = ${total_assets_calc_cur:,.2f}, Liabilities + Equity = ${total_liab_equity_cur:,.2f}. Mismatch = ${balance_mismatch_cur:,.2f}")
             
+    def format_business_number(bn):
+        if not bn:
+            return ""
+        clean = str(bn).replace(" ", "").strip()
+        if "RC" in clean:
+            parts = clean.split("RC")
+            return f"{parts[0]} RC{parts[1]}"
+        else:
+            digits = "".join(filter(str.isdigit, clean))
+            if digits:
+                return f"{digits} RC0001"
+            return clean
+
     # Format Tax Year End
     tax_year_end_formatted = meta.get("tax_year_end", "")
     try:
@@ -451,9 +464,8 @@ with col_right:
         st.markdown(f"""
         <div class="page-preview">
             <div class="report-title">Financial Statements</div>
-            <div class="report-subtitle">Financial Statements</div>
             <div class="company-name">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div class="report-subtitle" style="margin-top: 10px;">Business Number: {meta.get('business_number', 'N/A')}</div>
+            <div class="report-subtitle" style="margin-top: 10px;">Business Number: {format_business_number(meta.get('business_number'))}</div>
             <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
         </div>
         """, unsafe_allow_html=True)
@@ -735,9 +747,8 @@ with col_right:
     <!-- Page 1: Cover Page -->
     <div class="page">
         <div class="report-title">Financial Statements</div>
-        <div class="report-subtitle">Financial Statements</div>
         <div class="company-name">{meta.get('corporation_name', 'Company')}</div>
-        <div class="report-subtitle" style="margin-top: 10px;">Business Number: {meta.get('business_number', 'N/A')}</div>
+        <div class="report-subtitle" style="margin-top: 10px;">Business Number: {format_business_number(meta.get('business_number'))}</div>
         <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
     </div>
     

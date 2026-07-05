@@ -160,12 +160,24 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story = []
     
     # ------------------ PAGE 1: COVER PAGE ------------------
+    def format_business_number(bn):
+        if not bn:
+            return ""
+        clean = str(bn).replace(" ", "").strip()
+        if "RC" in clean:
+            parts = clean.split("RC")
+            return f"{parts[0]} RC{parts[1]}"
+        else:
+            digits = "".join(filter(str.isdigit, clean))
+            if digits:
+                return f"{digits} RC0001"
+            return clean
+
     story.append(Spacer(1, 100))
     story.append(Paragraph("FINANCIAL STATEMENTS", style_cover_title))
     story.append(Spacer(1, 30))
-    story.append(Paragraph("Financial Statements", style_cover_sub))
     story.append(Paragraph(meta.get("corporation_name", "Corporation").upper(), style_cover_company))
-    story.append(Paragraph(f"Business Number: {meta.get('business_number', 'N/A')}", style_cover_sub))
+    story.append(Paragraph(f"Business Number: {format_business_number(meta.get('business_number'))}", style_cover_sub))
     story.append(Spacer(1, 100))
     
     # Format year end

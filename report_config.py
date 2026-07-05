@@ -2,6 +2,8 @@
 
 NOTICE_TO_READER_TEXT = """These financial statements have been prepared from information provided by management for income tax reporting purposes.
 
+Management is responsible for the information used to prepare these financial statements.
+
 No audit, review, or compilation engagement has been performed, and no assurance is expressed on these financial statements."""
 
 NOTE_1_TEXT = "These financial statements have been prepared on the income tax basis of accounting from information provided by management."
