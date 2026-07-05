@@ -326,7 +326,7 @@ if uploaded_file is not None:
                         "GST/PST Rate",
                         help="Applicable GST or combined sales tax rate",
                         width="small",
-                        options=["0%", "5%", "12%", ""]
+                        options=["0%", "5%", "7%", "12%", ""]
                     )
                 },
                 disabled=["date", "description", "debit", "credit", "balance"],

@@ -344,7 +344,7 @@ if uploaded_file is not None:
                         "gst_rate": st.column_config.SelectboxColumn(
                             "GST/PST Rate",
                             width="small",
-                            options=["0%", "5%", "12%", ""]
+                            options=["0%", "5%", "7%", "12%", ""]
                         )
                     },
                     disabled=["date", "description", "debit", "credit", "balance"],
