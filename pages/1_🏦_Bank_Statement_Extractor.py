@@ -366,3 +366,32 @@ if uploaded_file is not None:
             file_name="extracted_bank_transactions.csv",
             mime="text/csv"
         )
+        
+        # View Learned Rules expander
+        st.write("")
+        with st.expander("🧠 View Learned Rules (Saved Overrides)", expanded=False):
+            user_rules = categorizer.get_user_rules()
+            if user_rules:
+                rules_data = []
+                for desc, meta in user_rules.items():
+                    rules_data.append({
+                        "Merchant Description": desc,
+                        "Saved Category": meta.get("category"),
+                        "GIFI Code": meta.get("gifi_code"),
+                        "GST Rate": meta.get("gst_rate")
+                    })
+                df_rules = pd.DataFrame(rules_data)
+                st.dataframe(df_rules, use_container_width=True)
+                
+                # Option to clear rules
+                col_del1, col_del2 = st.columns([3, 1])
+                with col_del2:
+                    clear_all = st.button("🗑️ Clear All Saved Rules", key="clear_all_rules_btn_bank")
+                    if clear_all:
+                        user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
+                        if os.path.exists(user_rules_path):
+                            os.remove(user_rules_path)
+                            st.success("All saved rules cleared! Refreshing...")
+                            st.rerun()
+            else:
+                st.info("No custom overrides saved yet. Use the 'Remember Manual Category Changes' button above to save overrides.")

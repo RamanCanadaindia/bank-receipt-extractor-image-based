@@ -331,3 +331,17 @@ Descriptions to categorize:
         print(f"Error calling Gemini for batch transaction categorization: {e}")
         
     return {}
+
+def get_user_rules():
+    """
+    Returns the dictionary of saved user overrides from user_rules.json.
+    """
+    import os
+    user_rules_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "user_rules.json")
+    if os.path.exists(user_rules_path):
+        try:
+            with open(user_rules_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
