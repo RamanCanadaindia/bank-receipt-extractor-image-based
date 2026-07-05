@@ -382,12 +382,17 @@ if uploaded_file is not None:
                 st.subheader("Filter Transactions by Category")
                 unique_cats_in_data = sorted(df_proc['category'].dropna().unique())
                 if unique_cats_in_data:
+                    # Add "All" option to view all transactions at once
+                    unique_cats_in_data = ["All"] + unique_cats_in_data
                     selected_filter_cat = st.selectbox(
                         "Select Category to View Details",
                         unique_cats_in_data,
                         key="filter_cat_selector_cat"
                     )
-                    df_filtered = df_proc[df_proc['category'] == selected_filter_cat]
+                    if selected_filter_cat == "All":
+                        df_filtered = df_proc
+                    else:
+                        df_filtered = df_proc[df_proc['category'] == selected_filter_cat]
                     
                     cat_spend = pd.to_numeric(df_filtered['debit'], errors='coerce').fillna(0).sum()
                     cat_income = pd.to_numeric(df_filtered['credit'], errors='coerce').fillna(0).sum()
