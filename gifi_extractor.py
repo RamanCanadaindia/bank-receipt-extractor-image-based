@@ -70,7 +70,13 @@ Do not include any markdown wrappers or backticks. Return raw JSON matching this
         ],
         "generationConfig": {
             "responseMimeType": "application/json"
-        }
+        },
+        "safetySettings": [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+        ]
     }
     
     headers = {"Content-Type": "application/json"}
@@ -95,21 +101,28 @@ Do not include any markdown wrappers or backticks. Return raw JSON matching this
                     
                 text_response = candidates[0]["content"]["parts"][0]["text"].strip()
                 
-                # Strip markdown wrappers if present
-                if text_response.startswith("```"):
-                    text_response = re.sub(r"^```(?:json|JSON)?\n", "", text_response)
-                    text_response = re.sub(r"\n```$", "", text_response)
-                text_response = text_response.strip()
-                
-                return json.loads(text_response)
+                # Robust extraction: find first '{' and last '}'
+                start_idx = text_response.find("{")
+                end_idx = text_response.rfind("}")
+                if start_idx != -1 and end_idx != -1:
+                    json_str = text_response[start_idx:end_idx+1]
+                    try:
+                        return json.loads(json_str)
+                    except json.JSONDecodeError as err:
+                        print(f"JSONDecodeError parsing page {page_num} response: {err}")
+                        print(f"Attempted JSON string: {json_str}")
+                else:
+                    print(f"Could not find JSON braces on page {page_num}. Response: {text_response}")
                 
         except urllib.error.HTTPError as e:
+            print(f"HTTPError on page {page_num} (attempt {attempt+1}): code={e.code}, reason={e.reason}")
             if e.code == 429:
                 time.sleep(backoff)
                 backoff *= 1.5
             else:
                 break
-        except Exception:
+        except Exception as e:
+            print(f"Unexpected exception on page {page_num} (attempt {attempt+1}): {e}")
             break
             
     return {}
@@ -145,7 +158,8 @@ def classify_gifi_items(raw_items):
             continue
             
         try:
-            code = int(code)
+            clean_code = re.sub(r"\D", "", str(code))
+            code = int(clean_code)
         except (ValueError, TypeError):
             continue
             
