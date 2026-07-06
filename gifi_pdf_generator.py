@@ -22,6 +22,39 @@ def safe_float(val):
     except ValueError:
         return 0.0
 
+def build_5_col_table(data_4_col, styles_4_col, col_widths_5_col=[220, 20, 90, 20, 90]):
+    data_5_col = []
+    for row in data_4_col:
+        if len(row) >= 4:
+            new_row = [row[0], "", row[1], row[2], row[3]]
+            data_5_col.append(new_row)
+        else:
+            data_5_col.append(row)
+            
+    styles_5_col = []
+    for cmd in styles_4_col:
+        name, start_coords, end_coords = cmd[0], cmd[1], cmd[2]
+        rest = cmd[3:]
+        
+        def map_col(col):
+            if col == 0:
+                return 0
+            if col == 1:
+                return 2
+            if col == 2:
+                return 3
+            if col == 3:
+                return 4
+            return col
+            
+        new_start = (map_col(start_coords[0]), start_coords[1])
+        new_end = (map_col(end_coords[0]), end_coords[1])
+        
+        new_cmd = (name, new_start, new_end) + rest
+        styles_5_col.append(new_cmd)
+        
+    return Table(data_5_col, colWidths=col_widths_5_col), styles_5_col
+
 def add_page_decorations(canvas, doc):
     """
     Draws headers and page numbers on non-cover pages.
@@ -264,7 +297,8 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     ]
     
     t_styles = [
-        ('LINEBELOW', (0,0), (1,0), 1.5, colors.black),
+        ('LINEBELOW', (0,0), (0,0), 1.5, colors.black),
+        ('LINEBELOW', (1,0), (1,0), 1.5, colors.black),
         ('LINEBELOW', (3,0), (3,0), 1.5, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
@@ -445,8 +479,8 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     t_styles.append(('LINEBELOW', (1, line_row), (1, line_row), 2, colors.black))
     t_styles.append(('LINEBELOW', (3, line_row), (3, line_row), 2, colors.black))
     
-    bs_table = Table(bs_data, colWidths=[240, 90, 20, 90])
-    bs_table.setStyle(TableStyle(t_styles))
+    bs_table, mapped_t_styles = build_5_col_table(bs_data, t_styles)
+    bs_table.setStyle(TableStyle(mapped_t_styles))
     
     story.append(bs_table)
     story.append(Spacer(1, 30))
@@ -488,7 +522,8 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     ]
     
     is_styles = [
-        ('LINEBELOW', (0,0), (1,0), 1.5, colors.black),
+        ('LINEBELOW', (0,0), (0,0), 1.5, colors.black),
+        ('LINEBELOW', (1,0), (1,0), 1.5, colors.black),
         ('LINEBELOW', (3,0), (3,0), 1.5, colors.black),
         ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
         ('BOTTOMPADDING', (0,0), (-1,-1), 4),
@@ -595,8 +630,8 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     is_styles.append(('LINEBELOW', (1, line_row), (1, line_row), 2, colors.black))
     is_styles.append(('LINEBELOW', (3, line_row), (3, line_row), 2, colors.black))
     
-    is_table = Table(is_data, colWidths=[240, 90, 20, 90])
-    is_table.setStyle(TableStyle(is_styles))
+    is_table, mapped_is_styles = build_5_col_table(is_data, is_styles)
+    is_table.setStyle(TableStyle(mapped_is_styles))
     
     story.append(is_table)
     story.append(PageBreak())
