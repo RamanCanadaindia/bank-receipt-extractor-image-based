@@ -304,16 +304,32 @@ if uploaded_files:
                 
                 # Pre-populate categories using saved rules database (learned overrides)
                 updated_categories = []
+                updated_suggested = []
                 updated_gifi = []
                 updated_gst = []
                 for _, row in df.iterrows():
                     desc = row.get("description", "")
-                    d_cat, d_gifi, d_gst = categorizer.lookup_by_rules(desc)
+                    
+                    # 1. Assigned Category (checks user overrides first)
+                    d_cat, d_gifi, d_gst = categorizer.lookup_with_overrides(desc)
+                    
+                    # 2. Raw Suggested Category (checks static rules first)
+                    ai_cat, _, _ = categorizer.lookup_by_rules(desc)
+                    if not ai_cat:
+                        is_cred = pd.to_numeric(row.get('credit'), errors='coerce') > 0 if pd.notna(pd.to_numeric(row.get('credit'), errors='coerce')) else False
+                        ai_cat = "Trade Sales" if is_cred else "Other Expenses"
+                        
+                    # Standard default fallbacks for assigned category
+                    if not d_cat:
+                        d_cat = ai_cat
+                        
                     updated_categories.append(d_cat)
+                    updated_suggested.append(ai_cat)
                     updated_gifi.append(d_gifi)
                     updated_gst.append(d_gst)
                     
                 df['category'] = updated_categories
+                df['suggested_category'] = updated_suggested
                 df['gifi_code'] = updated_gifi
                 df['gst_rate'] = updated_gst
                 
@@ -324,7 +340,7 @@ if uploaded_files:
                         df = local_extractor.apply_excel_category_map(df, mapping_excel)
                 
                 # Ensure all columns exist and are ordered
-                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
+                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'suggested_category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
                 for col in cols_order:
                     if col not in df.columns:
                         df[col] = ""
@@ -348,7 +364,7 @@ if uploaded_files:
                     df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                     
                     # Ensure all columns exist and are ordered
-                    cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
+                    cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'suggested_category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
                     for col in cols_order:
                         if col not in df.columns:
                             df[col] = ""
@@ -483,9 +499,14 @@ if uploaded_files:
                         help="Applicable GST or combined sales tax rate",
                         width="small",
                         options=["0%", "5%", "7%", "12%", ""]
+                    ),
+                    "suggested_category": st.column_config.TextColumn(
+                        "AI Suggestion",
+                        help="The original suggestion made by the AI or rules engine",
+                        width="medium"
                     )
                 },
-                disabled=["source_tab", "date", "description", "debit", "credit", "balance"],
+                disabled=["source_tab", "date", "description", "debit", "credit", "balance", "suggested_category"],
                 use_container_width=True,
                 key="editor_key"
             )

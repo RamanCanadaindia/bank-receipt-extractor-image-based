@@ -272,8 +272,22 @@ def categorize_transactions(api_key, transactions):
                 gifi_code = ""
                 gst_rate = "0%"
                 
+        # Determine raw AI/Static suggested category (prior to user rules override)
+        suggested = None
+        if desc in gemini_map:
+            suggested = gemini_map[desc]
+        else:
+            cat_rule, _, _ = lookup_by_rules(desc)
+            if cat_rule:
+                suggested = cat_rule
+            elif is_credit:
+                suggested = "Trade Sales"
+            else:
+                suggested = "Other Expenses"
+                
         new_tx = tx.copy()
         new_tx["category"] = category
+        new_tx["suggested_category"] = suggested
         new_tx["gifi_code"] = gifi_code
         new_tx["gst_rate"] = gst_rate
         categorized_txs.append(new_tx)
@@ -346,3 +360,14 @@ def get_user_rules():
         except Exception:
             pass
     return {}
+
+def lookup_with_overrides(desc):
+    """
+    Looks up description in user rules first (learned overrides), then custom rules.
+    """
+    user_rules = get_user_rules()
+    d_clean = str(desc).strip()
+    if d_clean in user_rules:
+        return user_rules[d_clean].get("category"), user_rules[d_clean].get("gifi_code", ""), user_rules[d_clean].get("gst_rate", "0%")
+        
+    return lookup_by_rules(desc)
