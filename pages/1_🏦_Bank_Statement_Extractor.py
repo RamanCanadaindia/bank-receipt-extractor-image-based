@@ -89,6 +89,21 @@ api_key = st.sidebar.text_input(
     help="Required for scanned/image-only PDFs. Get a free key at https://aistudio.google.com/"
 )
 
+extraction_engine = st.sidebar.radio(
+    "Extraction Engine",
+    ["Gemini AI Engine (Cloud OCR)", "Local Python Engine (Private & Offline)"],
+    index=0,
+    help="Select 'Local Python Engine' to parse digital text statements locally using custom layout rules, or 'Gemini AI Engine' to use Cloud OCR."
+)
+
+mapping_excel = None
+if extraction_engine == "Local Python Engine (Private & Offline)":
+    mapping_excel = st.sidebar.file_uploader(
+        "Upload Custom Category Map Excel (Optional)",
+        type=["xlsx", "xls"],
+        help="Upload an Excel sheet containing columns: Keyword, Category Name, Excel Column Name, GST Rate, PST Rate, GIFI Code."
+    )
+
 model = st.sidebar.selectbox(
     "Gemini OCR Model",
     ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest", "gemini-2.5-pro"],
@@ -155,11 +170,15 @@ if uploaded_files:
                 has_digital = True
 
     # Action button
-    btn_label = "⚡ Extract from Digital PDF(s) (Free)" if has_digital else "👁️ Extract via Gemini Vision OCR"
+    if extraction_engine == "Local Python Engine (Private & Offline)":
+        btn_label = "⚡ Process with Local Python Layout Engine (Offline)"
+    else:
+        btn_label = "⚡ Extract from Digital PDF(s) (Free)" if has_digital else "👁️ Extract via Gemini Vision OCR"
     run_extraction = st.button(btn_label)
 
     if run_extraction:
         all_combined_txs = []
+        local_reconciliation_results = []
         
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -179,59 +198,81 @@ if uploaded_files:
                     is_digital = True
             
             transactions = []
-            if is_digital:
-                with st.spinner(f"Extracting digital text from {u_file.name}..."):
-                    transactions = extract_statement.parse_digital_text(text_pages)
-                    if not transactions and api_key:
-                        with st.spinner(f"No transactions matched local regex. Falling back to Gemini API Text-parsing..."):
-                            full_text = "\n".join(text_pages)
-                            transactions = extract_statement.call_gemini_api_for_text(api_key, model, full_text)
-            else:
-                # Scanned statement - requires API Key
-                if not api_key:
-                    st.error(f"🔑 Gemini API Key is required to process scanned statements. Skipped: {u_file.name}")
-                    continue
-                else:
-                    # Reset stream pointer
+            detected_bank = "Standard"
+            opening_bal = 0.0
+            
+            if extraction_engine == "Local Python Engine (Private & Offline)":
+                import local_extractor
+                if is_digital:
                     u_file.seek(0)
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        tmp_file.write(u_file.read())
-                        tmp_pdf_path = tmp_file.name
+                    detected_bank = local_extractor.detect_bank(u_file)
+                    st.info(f"📋 Detected Bank Layout for {u_file.name}: **{detected_bank}**")
                     
-                    try:
-                        base64_images = extract_statement.render_pdf_pages(tmp_pdf_path)
-                    except Exception as e:
-                        st.error(f"Failed to render pages of {u_file.name}: {e}")
-                        base64_images = []
-                    finally:
-                        if os.path.exists(tmp_pdf_path):
-                            try:
-                                os.remove(tmp_pdf_path)
-                            except Exception:
-                                pass
-                                
-                    if base64_images:
-                        import concurrent.futures
-                        max_workers = 3
-                        transactions_by_page = {}
+                    u_file.seek(0)
+                    transactions, opening_bal = local_extractor.extract_digital_pdf(u_file, detected_bank)
+                    
+                    # Reconcile this statement
+                    reconciliation = local_extractor.reconcile_transactions(transactions, opening_bal)
+                    reconciliation["file_name"] = u_file.name
+                    reconciliation["bank_name"] = detected_bank
+                    local_reconciliation_results.append(reconciliation)
+                else:
+                    st.warning(f"⚠️ {u_file.name} appears to be a scanned statement. Local engine requires digital PDFs. Switch to Gemini AI Engine in the sidebar to process scanned statements.")
+                    continue
+            else:
+                if is_digital:
+                    with st.spinner(f"Extracting digital text from {u_file.name}..."):
+                        transactions = extract_statement.parse_digital_text(text_pages)
+                        if not transactions and api_key:
+                            with st.spinner(f"No transactions matched local regex. Falling back to Gemini API Text-parsing..."):
+                                full_text = "\n".join(text_pages)
+                                transactions = extract_statement.call_gemini_api_for_text(api_key, model, full_text)
+                else:
+                    # Scanned statement - requires API Key
+                    if not api_key:
+                        st.error(f"🔑 Gemini API Key is required to process scanned statements. Skipped: {u_file.name}")
+                        continue
+                    else:
+                        # Reset stream pointer
+                        u_file.seek(0)
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                            tmp_file.write(u_file.read())
+                            tmp_pdf_path = tmp_file.name
                         
-                        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                            futures = {
-                                executor.submit(extract_statement.call_gemini_api, api_key, model, img_b64, i+1): i+1
-                                for i, img_b64 in enumerate(base64_images)
-                            }
-                            
-                            for future in concurrent.futures.as_completed(futures):
-                                page_num = futures[future]
+                        try:
+                            base64_images = extract_statement.render_pdf_pages(tmp_pdf_path)
+                        except Exception as e:
+                            st.error(f"Failed to render pages of {u_file.name}: {e}")
+                            base64_images = []
+                        finally:
+                            if os.path.exists(tmp_pdf_path):
                                 try:
-                                    page_txs = future.result()
-                                    transactions_by_page[page_num] = page_txs
-                                except Exception as e:
-                                    st.warning(f"Error on page {page_num} of {u_file.name}: {e}")
-                                    transactions_by_page[page_num] = []
-                        
-                        for page_num in sorted(transactions_by_page.keys()):
-                            transactions.extend(transactions_by_page[page_num])
+                                    os.remove(tmp_pdf_path)
+                                except Exception:
+                                    pass
+                                    
+                        if base64_images:
+                            import concurrent.futures
+                            max_workers = 3
+                            transactions_by_page = {}
+                            
+                            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                                futures = {
+                                    executor.submit(extract_statement.call_gemini_api, api_key, model, img_b64, i+1): i+1
+                                    for i, img_b64 in enumerate(base64_images)
+                                }
+                                
+                                for future in concurrent.futures.as_completed(futures):
+                                    page_num = futures[future]
+                                    try:
+                                        page_txs = future.result()
+                                        transactions_by_page[page_num] = page_txs
+                                    except Exception as e:
+                                        st.warning(f"Error on page {page_num} of {u_file.name}: {e}")
+                                        transactions_by_page[page_num] = []
+                            
+                            for page_num in sorted(transactions_by_page.keys()):
+                                transactions.extend(transactions_by_page[page_num])
             
             if transactions:
                 # Validate the flow for this statement
@@ -241,19 +282,18 @@ if uploaded_files:
                     )
                 for tx in validated_txs:
                     tx["source_file"] = u_file.name
-                    tx["institution"] = institution
+                    tx["institution"] = detected_bank if extraction_engine == "Local Python Engine (Private & Offline)" else institution
                 all_combined_txs.extend(validated_txs)
                 
         progress_bar.progress(1.0)
         status_text.text("Finished processing all files!")
         
+        # Save local reconciliation results to session state
+        st.session_state.local_reconciliation_results = local_reconciliation_results
+        
         if all_combined_txs:
-            with st.spinner("Auto-categorizing all extracted transactions..."):
-                # Run auto-categorization helper
-                categorized_txs = categorizer.categorize_transactions(api_key, all_combined_txs)
-                
-                # Convert to DataFrame
-                df = pd.DataFrame(categorized_txs)
+            if extraction_engine == "Local Python Engine (Private & Offline)":
+                df = pd.DataFrame(all_combined_txs)
                 df['source_tab'] = "Bank"
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 if sort_chronologically:
@@ -261,6 +301,17 @@ if uploaded_files:
                 else:
                     df = df.reset_index(drop=True)
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+                
+                # Pre-populate empty category rates
+                df['category'] = "Uncategorized"
+                df['gifi_code'] = ""
+                df['gst_rate'] = ""
+                
+                # Apply custom map
+                if mapping_excel:
+                    with st.spinner("Applying custom Category Map from Excel..."):
+                        import local_extractor
+                        df = local_extractor.apply_excel_category_map(df, mapping_excel)
                 
                 # Ensure all columns exist and are ordered
                 cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
@@ -270,13 +321,47 @@ if uploaded_files:
                 df = df[cols_order]
                 
                 st.session_state.bank_df = df
-                st.success(f"🎉 Successfully extracted {len(df)} transactions from {len(uploaded_files)} files!")
+                st.success(f"🎉 Successfully extracted {len(df)} transactions locally from {len(uploaded_files)} files!")
+            else:
+                with st.spinner("Auto-categorizing all extracted transactions..."):
+                    # Run auto-categorization helper
+                    categorized_txs = categorizer.categorize_transactions(api_key, all_combined_txs)
+                    
+                    # Convert to DataFrame
+                    df = pd.DataFrame(categorized_txs)
+                    df['source_tab'] = "Bank"
+                    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+                    if sort_chronologically:
+                        df = df.sort_values(by='date').reset_index(drop=True)
+                    else:
+                        df = df.reset_index(drop=True)
+                    df['date'] = df['date'].dt.strftime('%Y-%m-%d')
+                    
+                    # Ensure all columns exist and are ordered
+                    cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
+                    for col in cols_order:
+                        if col not in df.columns:
+                            df[col] = ""
+                    df = df[cols_order]
+                    
+                    st.session_state.bank_df = df
+                    st.success(f"🎉 Successfully extracted {len(df)} transactions from {len(uploaded_files)} files!")
         else:
             st.warning("⚠️ No transactions could be extracted from the uploaded files.")
 
     # Now render dashboard if transactions are loaded in session state
     if "bank_df" in st.session_state and st.session_state.bank_df is not None:
         df = st.session_state.bank_df
+        
+        # Display reconciliation warning if mismatch found in local extraction
+        if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
+            st.subheader("📋 Offline Reconciliation Audit Log")
+            for result in st.session_state.local_reconciliation_results:
+                if not result["reconciled"]:
+                    st.error(f"⚠️ **{result['file_name']} ({result['bank_name']}) Reconciliation Warning**: Difference of **${result['difference']:,.2f}** (Opening: ${result['opening_balance']:,.2f}, Calculated Closing: ${result['closing_balance'] - result['difference']:,.2f}, Actual: ${result['closing_balance']:,.2f})")
+                else:
+                    st.success(f"✅ **{result['file_name']} ({result['bank_name']}) Reconciled**: Opening ${result['opening_balance']:,.2f} matches transaction flow to Closing ${result['closing_balance']:,.2f}")
+            st.write("")
         
         # Metrics Calculation
         total_debits = pd.to_numeric(df['debit'], errors='coerce').fillna(0).sum()
@@ -471,14 +556,87 @@ if uploaded_files:
                     
                 st.dataframe(df_filtered[['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'gifi_code', 'gst_rate']], use_container_width=True)
             
-        # Download CSV button
-        csv_data = df_edited.to_csv(index=False)
-        st.download_button(
-            label="📥 Download Transactions as CSV",
-            data=csv_data,
-            file_name="extracted_bank_transactions.csv",
-            mime="text/csv"
-        )
+        # Download Export Options
+        st.write("")
+        st.subheader("📥 Export Options")
+        
+        col_ex1, col_ex2, col_ex3 = st.columns(3)
+        
+        with col_ex1:
+            csv_data = df_edited.to_csv(index=False)
+            st.download_button(
+                label="📥 Download as CSV",
+                data=csv_data,
+                file_name="extracted_bank_transactions.csv",
+                mime="text/csv",
+                key="download_csv_btn"
+            )
+            
+        with col_ex2:
+            try:
+                import local_extractor
+                # Convert df_edited back to transaction dict list
+                txs_list = []
+                for _, r in df_edited.iterrows():
+                    txs_list.append({
+                        "date": r["date"],
+                        "description": r["description"],
+                        "debit": float(r["debit"]) if pd.notna(r["debit"]) and r["debit"] != "" else None,
+                        "credit": float(r["credit"]) if pd.notna(r["credit"]) and r["credit"] != "" else None,
+                        "balance": float(r["balance"]) if pd.notna(r["balance"]) and r["balance"] != "" else None,
+                        "category": r.get("category", ""),
+                        "gifi_code": r.get("gifi_code", ""),
+                        "gst_rate": r.get("gst_rate", "")
+                    })
+                
+                # Reconcile full dataset
+                first_opening = 0.0
+                if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
+                    first_opening = st.session_state.local_reconciliation_results[0]["opening_balance"]
+                
+                full_reconcile = local_extractor.reconcile_transactions(txs_list, first_opening)
+                bank_val = df_edited['institution'].iloc[0] if not df_edited.empty else "Standard"
+                
+                excel_bytes = local_extractor.generate_excel_report(
+                    txs_list,
+                    full_reconcile,
+                    bank_val,
+                    "extracted_statements.pdf"
+                )
+                
+                st.download_button(
+                    label="📊 Download as Excel (Styled)",
+                    data=excel_bytes,
+                    file_name="extracted_bank_statement.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel_btn"
+                )
+            except Exception as e:
+                st.error(f"Excel error: {e}")
+                
+        with col_ex3:
+            try:
+                import local_extractor
+                # Sort transactions chronologically
+                df_sorted = df_edited.copy()
+                df_sorted['date_dt'] = pd.to_datetime(df_sorted['date'], errors='coerce')
+                df_sorted = df_sorted.sort_values(by='date_dt').reset_index(drop=True)
+                
+                first_op = 0.0
+                if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
+                    first_op = st.session_state.local_reconciliation_results[0]["opening_balance"]
+                    
+                annual_bytes = local_extractor.generate_annual_workbook(df_sorted, first_op)
+                
+                st.download_button(
+                    label="📅 Download Annual Workbook (Month Separators)",
+                    data=annual_bytes,
+                    file_name="annual_accounting_workbook.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_annual_excel_btn"
+                )
+            except Exception as e:
+                st.error(f"Annual Excel error: {e}")
         
         # Google Sheets Sync Section
         st.markdown("---")
