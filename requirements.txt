@@ -8,3 +8,5 @@ matplotlib
 seaborn
 openpyxl
 reportlab
+gspread
+google-auth

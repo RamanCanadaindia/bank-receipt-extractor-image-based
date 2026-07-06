@@ -105,120 +105,144 @@ sort_chronologically = st.sidebar.checkbox(
 )
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("### 📋 Google Sheets Metadata")
+client_name = st.sidebar.text_input("Client Name", value="Test Client")
+account_name = st.sidebar.text_input("Account Name", value="Main Checking")
+institution = st.sidebar.text_input("Financial Institution", value="RBC")
+
+from datetime import datetime, date
+default_start = date(2024, 1, 1)
+default_end = date(2024, 12, 31)
+
+statement_start = st.sidebar.date_input("Statement Start Date", value=default_start)
+statement_end = st.sidebar.date_input("Statement End Date", value=default_end)
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("### How it works:")
 st.sidebar.info("""
-1. **Upload** your statement PDF.
+1. **Upload** your statement PDF(s).
 2. The tool checks for **digital text** first (free).
 3. If scanned, it renders pages using **pypdfium2** and uses **Gemini Vision OCR** to extract the rows.
 4. It **mathematically validates** the transactions chronologically and flags errors.
 """)
 
 # File Uploader
-uploaded_file = st.file_uploader("Upload your Bank Statement PDF", type=["pdf"])
+uploaded_files = st.file_uploader("Upload your Bank Statement PDF(s)", type=["pdf"], accept_multiple_files=True)
 
-if uploaded_file is not None:
-    # Clear session state if file changes
-    file_key = f"file_{uploaded_file.name}_{uploaded_file.size}"
-    if "current_file_key" not in st.session_state or st.session_state.current_file_key != file_key:
+if uploaded_files:
+    # Clear session state if files change
+    combined_key = "_".join([f"{f.name}_{f.size}" for f in uploaded_files])
+    if "current_file_key" not in st.session_state or st.session_state.current_file_key != combined_key:
         st.session_state.bank_transactions = []
-        st.session_state.current_file_key = file_key
+        st.session_state.current_file_key = combined_key
 
-    # Determine extraction mode
-    text_pages = []
-    is_digital = False
-    
+    # Check if there is digital PDF
+    has_digital = False
     if not force_ocr:
+        # Check first file as representative
         with st.spinner("Checking PDF type..."):
-            text_pages = extract_statement.extract_digital_text(uploaded_file)
-            if text_pages:
-                is_digital = True
-                
+            test_pages = extract_statement.extract_digital_text(uploaded_files[0])
+            if test_pages:
+                has_digital = True
+
     # Action button
-    btn_label = "⚡ Extract from Digital PDF (Free)" if is_digital else "👁️ Extract via Gemini Vision OCR"
+    btn_label = "⚡ Extract from Digital PDF(s) (Free)" if has_digital else "👁️ Extract via Gemini Vision OCR"
     run_extraction = st.button(btn_label)
-    
+
     if run_extraction:
-        transactions = []
+        all_combined_txs = []
         
-        if is_digital:
-            with st.spinner("Extracting transaction text digitally..."):
-                transactions = extract_statement.parse_digital_text(text_pages)
-        else:
-            # Scanned statement - requires API Key
-            if not api_key:
-                st.error("🔑 Gemini API Key is required to process scanned statements. Please enter it in the sidebar.")
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        for file_idx, u_file in enumerate(uploaded_files):
+            status_text.text(f"Processing file {file_idx+1}/{len(uploaded_files)}: {u_file.name}...")
+            progress_bar.progress(file_idx / len(uploaded_files))
+            
+            # Reset stream pointer
+            u_file.seek(0)
+            text_pages = []
+            is_digital = False
+            
+            if not force_ocr:
+                text_pages = extract_statement.extract_digital_text(u_file)
+                if text_pages:
+                    is_digital = True
+            
+            transactions = []
+            if is_digital:
+                with st.spinner(f"Extracting digital text from {u_file.name}..."):
+                    transactions = extract_statement.parse_digital_text(text_pages)
             else:
-                # Render pages to base64 images - requires a temporary file on disk for pypdfium2
-                with st.spinner("Rendering PDF pages to image format..."):
-                    # Reset the file stream pointer first
-                    uploaded_file.seek(0)
+                # Scanned statement - requires API Key
+                if not api_key:
+                    st.error(f"🔑 Gemini API Key is required to process scanned statements. Skipped: {u_file.name}")
+                    continue
+                else:
+                    # Reset stream pointer
+                    u_file.seek(0)
                     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                        tmp_file.write(uploaded_file.read())
+                        tmp_file.write(u_file.read())
                         tmp_pdf_path = tmp_file.name
                     
                     try:
                         base64_images = extract_statement.render_pdf_pages(tmp_pdf_path)
+                    except Exception as e:
+                        st.error(f"Failed to render pages of {u_file.name}: {e}")
+                        base64_images = []
                     finally:
                         if os.path.exists(tmp_pdf_path):
                             try:
                                 os.remove(tmp_pdf_path)
                             except Exception:
                                 pass
-                
-                # API calls per page in parallel
-                import concurrent.futures
-                
-                max_workers = 3
-                
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-                status_text.text(f"Processing {len(base64_images)} pages in parallel (concurrency={max_workers})...")
-                
-                completed = 0
-                transactions_by_page = {}
-                
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    # Submit all tasks
-                    futures = {
-                        executor.submit(extract_statement.call_gemini_api, api_key, model, img_b64, i+1): i+1
-                        for i, img_b64 in enumerate(base64_images)
-                    }
-                    
-                    for future in concurrent.futures.as_completed(futures):
-                        page_num = futures[future]
-                        try:
-                            page_txs = future.result()
-                            transactions_by_page[page_num] = page_txs
-                        except Exception as e:
-                            st.warning(f"Error on page {page_num}: {e}")
-                            transactions_by_page[page_num] = []
+                                
+                    if base64_images:
+                        import concurrent.futures
+                        max_workers = 3
+                        transactions_by_page = {}
+                        
+                        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                            futures = {
+                                executor.submit(extract_statement.call_gemini_api, api_key, model, img_b64, i+1): i+1
+                                for i, img_b64 in enumerate(base64_images)
+                            }
                             
-                        completed += 1
-                        status_text.text(f"Finished page {page_num} ({completed}/{len(base64_images)} pages processed)...")
-                        progress_bar.progress(completed / len(base64_images))
-                
-                # Assemble in correct page order
-                for page_num in sorted(transactions_by_page.keys()):
-                    transactions.extend(transactions_by_page[page_num])
-                    
-                progress_bar.empty()
-                status_text.empty()
-        
-        if transactions:
-            # Validate the flow
-            with st.spinner("Validating mathematical balance flows..."):
-                validated_txs = extract_statement.validate_and_correct_transactions(
-                    transactions, sort_chronologically=sort_chronologically
-                )
+                            for future in concurrent.futures.as_completed(futures):
+                                page_num = futures[future]
+                                try:
+                                    page_txs = future.result()
+                                    transactions_by_page[page_num] = page_txs
+                                except Exception as e:
+                                    st.warning(f"Error on page {page_num} of {u_file.name}: {e}")
+                                    transactions_by_page[page_num] = []
+                        
+                        for page_num in sorted(transactions_by_page.keys()):
+                            transactions.extend(transactions_by_page[page_num])
             
-            with st.spinner("Auto-categorizing transactions..."):
+            if transactions:
+                # Validate the flow for this statement
+                with st.spinner(f"Validating balance flows for {u_file.name}..."):
+                    validated_txs = extract_statement.validate_and_correct_transactions(
+                        transactions, sort_chronologically=sort_chronologically
+                    )
+                for tx in validated_txs:
+                    tx["source_file"] = u_file.name
+                    tx["institution"] = institution
+                all_combined_txs.extend(validated_txs)
+                
+        progress_bar.progress(1.0)
+        status_text.text("Finished processing all files!")
+        
+        if all_combined_txs:
+            with st.spinner("Auto-categorizing all extracted transactions..."):
                 # Run auto-categorization helper
-                categorized_txs = categorizer.categorize_transactions(api_key, validated_txs)
+                categorized_txs = categorizer.categorize_transactions(api_key, all_combined_txs)
                 
                 # Convert to DataFrame
                 df = pd.DataFrame(categorized_txs)
                 df['source_tab'] = "Bank"
-                df['date'] = pd.to_datetime(df['date'])
+                df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 if sort_chronologically:
                     df = df.sort_values(by='date').reset_index(drop=True)
                 else:
@@ -226,16 +250,16 @@ if uploaded_file is not None:
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                 
                 # Ensure all columns exist and are ordered
-                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate']
+                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
                 for col in cols_order:
                     if col not in df.columns:
                         df[col] = ""
                 df = df[cols_order]
                 
                 st.session_state.bank_df = df
-                st.success("🎉 Extraction, validation, and categorization complete!")
+                st.success(f"🎉 Successfully extracted {len(df)} transactions from {len(uploaded_files)} files!")
         else:
-            st.warning("⚠️ No transactions could be extracted from the file.")
+            st.warning("⚠️ No transactions could be extracted from the uploaded files.")
 
     # Now render dashboard if transactions are loaded in session state
     if "bank_df" in st.session_state and st.session_state.bank_df is not None:
@@ -443,6 +467,166 @@ if uploaded_file is not None:
             mime="text/csv"
         )
         
+        # Google Sheets Sync Section
+        st.markdown("---")
+        st.subheader("📤 Google Sheets Integration")
+        
+        has_sheets_secrets = "gcp_service_account" in st.secrets and "google_sheets" in st.secrets
+        if not has_sheets_secrets:
+            st.warning("⚠️ Google Sheets credentials are not configured in secrets. Please configure secrets.toml or Streamlit Cloud Settings to enable sync.")
+        else:
+            st.info("💡 Google Sheets credentials detected. Press the button below to upload directly.")
+            
+        col_sh1, col_sh2 = st.columns([1, 1])
+        with col_sh1:
+            send_to_sheets = st.button("📤 Process & Send to Google Sheets", key="send_to_sheets_btn")
+            
+        if send_to_sheets and has_sheets_secrets:
+            import sheets_helper
+            with st.spinner("Connecting to Google Sheets..."):
+                client = sheets_helper.get_gspread_client()
+                spreadsheet = sheets_helper.get_spreadsheet(client) if client else None
+                
+            if spreadsheet:
+                with st.spinner("Performing pre-categorization, duplicate checking, and upload..."):
+                    # 1. Load Category Map and apply pre-categorization
+                    cat_map_df = sheets_helper.load_category_map(spreadsheet)
+                    
+                    # Create normalized schema copy for upload
+                    upload_df = pd.DataFrame()
+                    upload_df['client_name'] = [client_name] * len(df_edited)
+                    upload_df['account_name'] = [account_name] * len(df_edited)
+                    upload_df['statement_start'] = [statement_start.isoformat()] * len(df_edited)
+                    upload_df['statement_end'] = [statement_end.isoformat()] * len(df_edited)
+                    upload_df['transaction_date'] = df_edited['date']
+                    upload_df['description'] = df_edited['description']
+                    
+                    # Numeric amounts
+                    debits = pd.to_numeric(df_edited['debit'], errors='coerce')
+                    credits = pd.to_numeric(df_edited['credit'], errors='coerce')
+                    
+                    upload_df['amount'] = debits.fillna(0) + credits.fillna(0)
+                    upload_df['debit_credit_flag'] = ['debit' if pd.notna(d) and d != "" else 'credit' for d in df_edited['debit']]
+                    upload_df['running_balance'] = pd.to_numeric(df_edited['balance'], errors='coerce').fillna(0)
+                    
+                    # pre-populate user edits first
+                    upload_df['category'] = df_edited['category']
+                    upload_df['subcategory'] = "" # default
+                    
+                    # Apply Category Map for remaining empty categories
+                    upload_df = sheets_helper.apply_category_map(upload_df, cat_map_df)
+                    
+                    # Other metadata
+                    upload_df['source_file'] = df_edited['source_file'] if 'source_file' in df_edited.columns else ""
+                    upload_df['institution'] = df_edited['institution'] if 'institution' in df_edited.columns else institution
+                    upload_df['upload_timestamp'] = datetime.now().isoformat()
+                    
+                    # Validation flags (Suspicious balance, missing date, missing amount)
+                    review_flags = []
+                    review_reasons = []
+                    
+                    # Balance discrepancy check: running balance vs calculated balance transitions
+                    running_bal_list = upload_df['running_balance'].tolist()
+                    debit_credit_list = upload_df['debit_credit_flag'].tolist()
+                    amount_list = upload_df['amount'].tolist()
+                    
+                    for idx, row_up in upload_df.iterrows():
+                        flag = "False"
+                        reason = ""
+                        
+                        # Date validation
+                        if pd.isna(row_up['transaction_date']) or not str(row_up['transaction_date']).strip():
+                            flag = "True"
+                            reason += "Missing transaction date; "
+                            
+                        # Amount validation
+                        if pd.isna(row_up['amount']) or row_up['amount'] == 0:
+                            flag = "True"
+                            reason += "Missing or zero amount; "
+                            
+                        # Balance discrepancy check
+                        if idx > 0:
+                            prev_bal = running_bal_list[idx-1]
+                            curr_bal = running_bal_list[idx]
+                            curr_amt = amount_list[idx]
+                            curr_flag = debit_credit_list[idx]
+                            
+                            expected_bal = prev_bal + curr_amt if curr_flag == 'credit' else prev_bal - curr_amt
+                            if abs(expected_bal - curr_bal) > 0.05: # allow small float tolerance
+                                flag = "True"
+                                reason += f"Suspicious balance transition (expected {expected_bal:.2f}, got {curr_bal:.2f}); "
+                                
+                        review_flags.append(flag)
+                        review_reasons.append(reason.strip("; "))
+                        
+                    upload_df['review_flag'] = review_flags
+                    upload_df['review_reason'] = review_reasons
+                    
+                    # Generate deterministic hash key
+                    hashes = []
+                    for _, r_hash in upload_df.iterrows():
+                        h_key = sheets_helper.generate_hash_key(
+                            r_hash['account_name'],
+                            r_hash['transaction_date'],
+                            r_hash['description'],
+                            r_hash['amount']
+                        )
+                        hashes.append(h_key)
+                    upload_df['hash_key'] = hashes
+                    
+                    # 2. Duplicate Detection
+                    existing_hashes = sheets_helper.load_existing_hashes(spreadsheet)
+                    extracted_count = len(upload_df)
+                    
+                    # Filter out duplicates
+                    dupe_mask = upload_df['hash_key'].isin(existing_hashes)
+                    dupes_df = upload_df[dupe_mask]
+                    new_df = upload_df[~dupe_mask]
+                    
+                    duplicate_count = len(dupes_df)
+                    
+                    # 3. Split clean and review rows
+                    clean_df, review_df = sheets_helper.split_clean_and_review(new_df)
+                    
+                    review_count = len(review_df)
+                    appended_count = len(clean_df)
+                    
+                    # 4. Append to worksheet tabs
+                    success_clean = sheets_helper.append_rows_to_sheet(spreadsheet, "Raw_Transactions", clean_df)
+                    success_review = sheets_helper.append_rows_to_sheet(spreadsheet, "Needs_Review", review_df)
+                    
+                    # 5. Log processing run
+                    status = "SUCCESS" if (success_clean and success_review) else "PARTIAL_FAILURE"
+                    summary_dict = {
+                        "file_count": len(uploaded_files),
+                        "row_count": extracted_count,
+                        "duplicates_count": duplicate_count,
+                        "review_count": review_count,
+                        "status": status
+                    }
+                    sheets_helper.log_processing_run(spreadsheet, summary_dict)
+                    
+                    # 6. Display Processing Summary metrics
+                    st.success("🎉 Direct Google Sheets Sync Completed Successfully!")
+                    
+                    sc1, sc2, sc3, sc4 = st.columns(4)
+                    with sc1:
+                        st.metric("Extracted", extracted_count)
+                    with sc2:
+                        st.metric("Duplicates Skipped", duplicate_count)
+                    with sc3:
+                        st.metric("Appended to Raw", appended_count)
+                    with sc4:
+                        st.metric("Sent to Review", review_count)
+                        
+                    # Previews
+                    if not clean_df.empty:
+                        with st.expander("📄 Preview Appended Clean Rows", expanded=False):
+                            st.dataframe(clean_df, use_container_width=True)
+                    if not review_df.empty:
+                        with st.expander("⚠️ Preview Sent to Review Rows", expanded=True):
+                            st.dataframe(review_df, use_container_width=True)
+
         # View Learned Rules expander
         st.write("")
         with st.expander("🧠 View Learned Rules (Saved Overrides)", expanded=False):
