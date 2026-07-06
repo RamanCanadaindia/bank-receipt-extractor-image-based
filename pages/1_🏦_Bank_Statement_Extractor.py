@@ -99,7 +99,7 @@ extraction_engine = st.sidebar.radio(
 mapping_excel = None
 if extraction_engine == "Local Python Engine (Private & Offline)":
     mapping_excel = st.sidebar.file_uploader(
-        "Upload Custom Category Map Excel (Optional)",
+        "Upload Custom Map sheet (Optional)",
         type=["xlsx", "xls"],
         help="Upload an Excel sheet containing columns: Keyword, Category Name, Excel Column Name, GST Rate, PST Rate, GIFI Code."
     )
