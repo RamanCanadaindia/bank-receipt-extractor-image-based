@@ -972,3 +972,84 @@ if uploaded_files:
                         os.remove(user_rules_path)
                         st.success("All saved rules cleared! Refreshing...")
                         st.rerun()
+                        
+            # File Uploader to import custom rules directly to database
+            st.markdown("---")
+            st.markdown("### 📤 Import Rules from Excel/CSV Mappings File")
+            import_file = st.file_uploader(
+                "Upload a mappings file (Excel/CSV) to import directly to your rules database",
+                type=["xlsx", "xls", "csv"],
+                key="import_rules_uploader"
+            )
+            if import_file:
+                try:
+                    # Load the file
+                    if import_file.name.lower().endswith(('.xlsx', '.xls')):
+                        import pandas as pd
+                        df_imp = pd.read_excel(import_file)
+                    else:
+                        import pandas as pd
+                        df_imp = pd.read_csv(import_file)
+                        
+                    # Find correct columns
+                    cols = df_imp.columns.tolist()
+                    keyword_col = None
+                    category_col = None
+                    gifi_col = None
+                    gst_col = None
+                    
+                    # Fuzzy match headers
+                    for c in cols:
+                        c_low = str(c).lower()
+                        if "keyword" in c_low or "merchant" in c_low or "description" in c_low:
+                            keyword_col = c
+                        elif "category" in c_low:
+                            category_col = c
+                        elif "gifi" in c_low:
+                            gifi_col = c
+                        elif "gst" in c_low or "tax" in c_low or "pst" in c_low:
+                            gst_col = c
+                            
+                    # Fallback to column index if not matched
+                    if not keyword_col and len(cols) > 0:
+                        keyword_col = cols[0]
+                    if not category_col and len(cols) > 1:
+                        category_col = cols[1]
+                    if not gifi_col and len(cols) > 2:
+                        gifi_col = cols[2]
+                    if not gst_col and len(cols) > 3:
+                        gst_col = cols[3]
+                        
+                    if keyword_col and category_col:
+                        imported_rules = categorizer.get_user_rules() # existing rules
+                        import_count = 0
+                        for _, row_imp in df_imp.iterrows():
+                            k_val = str(row_imp.get(keyword_col, "")).strip()
+                            cat_val = str(row_imp.get(category_col, "")).strip()
+                            gifi_val = str(row_imp.get(gifi_col, "")) if (gifi_col and pd.notna(row_imp.get(gifi_col))) else ""
+                            gst_val = str(row_imp.get(gst_col, "0%")) if (gst_col and pd.notna(row_imp.get(gst_col))) else "0%"
+                            
+                            # Clean up and normalize nulls
+                            if pd.isna(row_imp.get(keyword_col)) or not k_val:
+                                continue
+                            if pd.isna(row_imp.get(category_col)) or not cat_val:
+                                continue
+                                
+                            imported_rules[k_val] = {
+                                "category": cat_val,
+                                "gifi_code": gifi_val,
+                                "gst_rate": gst_val
+                            }
+                            import_count += 1
+                            
+                        # Save
+                        user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
+                        with open(user_rules_path, "w", encoding="utf-8") as f:
+                            json.dump(imported_rules, f, indent=4, ensure_ascii=False)
+                            
+                        st.success(f"🎉 Successfully imported {import_count} mapping rules to your database!")
+                        st.rerun()
+                    else:
+                        st.error("Could not identify Keyword and Category columns in the uploaded file.")
+                except Exception as e:
+                    st.error(f"Failed to import rules: {e}")
