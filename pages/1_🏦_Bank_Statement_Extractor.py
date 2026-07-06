@@ -123,18 +123,12 @@ sort_chronologically = st.sidebar.checkbox(
     help="Sort transactions from oldest to newest. Uncheck this to keep the exact page/row order from the PDF statement."
 )
 
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 📋 Google Sheets Metadata")
-client_name = st.sidebar.text_input("Client Name", value="Test Client")
-account_name = st.sidebar.text_input("Account Name", value="Main Checking")
-institution = st.sidebar.text_input("Financial Institution", value="RBC")
-
 from datetime import datetime, date
-default_start = date(2024, 1, 1)
-default_end = date(2024, 12, 31)
-
-statement_start = st.sidebar.date_input("Statement Start Date", value=default_start)
-statement_end = st.sidebar.date_input("Statement End Date", value=default_end)
+client_name = ""
+account_name = ""
+institution = ""
+statement_start = date(2024, 1, 1)
+statement_end = date(2024, 12, 31)
 target_spreadsheet_id = st.sidebar.text_input(
     "Target Google Sheet ID / URL",
     value=st.secrets.get("google_sheets", {}).get("spreadsheet_id", ""),
