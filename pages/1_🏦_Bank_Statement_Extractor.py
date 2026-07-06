@@ -302,10 +302,20 @@ if uploaded_files:
                     df = df.reset_index(drop=True)
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                 
-                # Pre-populate empty category rates
-                df['category'] = "Uncategorized"
-                df['gifi_code'] = ""
-                df['gst_rate'] = ""
+                # Pre-populate categories using saved rules database (learned overrides)
+                updated_categories = []
+                updated_gifi = []
+                updated_gst = []
+                for _, row in df.iterrows():
+                    desc = row.get("description", "")
+                    d_cat, d_gifi, d_gst = categorizer.lookup_by_rules(desc)
+                    updated_categories.append(d_cat)
+                    updated_gifi.append(d_gifi)
+                    updated_gst.append(d_gst)
+                    
+                df['category'] = updated_categories
+                df['gifi_code'] = updated_gifi
+                df['gst_rate'] = updated_gst
                 
                 # Apply custom map
                 if mapping_excel:
