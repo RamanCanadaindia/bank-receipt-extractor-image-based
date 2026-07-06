@@ -89,7 +89,7 @@ def load_category_map(spreadsheet):
         records = wks.get_all_records()
         return pd.DataFrame(records)
     except gspread.exceptions.WorksheetNotFound:
-        st.warning("⚠️ 'Category_Map' worksheet not found in Google Sheet.")
+        # Silently fail and return empty DataFrame if worksheet is not present
         return pd.DataFrame(columns=["keyword", "merchant_normalized", "category", "subcategory"])
     except Exception as e:
         st.error(f"❌ Error loading Category_Map: {e}")
