@@ -19,11 +19,16 @@ def get_gspread_client():
     import json
     try:
         if "gcp_service_account_json" in st.secrets:
-            credentials_dict = json.loads(st.secrets["gcp_service_account_json"])
+            # strict=False allows literal newlines/control characters inside the JSON string
+            credentials_dict = json.loads(st.secrets["gcp_service_account_json"], strict=False)
         elif "gcp_service_account" in st.secrets:
             credentials_dict = dict(st.secrets["gcp_service_account"])
         else:
             raise KeyError("Neither 'gcp_service_account' nor 'gcp_service_account_json' keys found in Streamlit secrets.")
+            
+        # Sanitize private key newlines
+        if "private_key" in credentials_dict:
+            credentials_dict["private_key"] = credentials_dict["private_key"].replace("\\n", "\n")
             
         creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
         return gspread.authorize(creds)
