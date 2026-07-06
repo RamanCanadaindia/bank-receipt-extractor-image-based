@@ -366,8 +366,27 @@ if uploaded_files:
         # Metrics Calculation
         total_debits = pd.to_numeric(df['debit'], errors='coerce').fillna(0).sum()
         total_credits = pd.to_numeric(df['credit'], errors='coerce').fillna(0).sum()
-        opening_bal = pd.to_numeric(df.iloc[0]['balance'], errors='coerce') + pd.to_numeric(df.iloc[0]['debit'], errors='coerce').fillna(0) - pd.to_numeric(df.iloc[0]['credit'], errors='coerce').fillna(0) if (pd.notna(df.iloc[0]['debit']) or pd.notna(df.iloc[0]['credit'])) else pd.to_numeric(df.iloc[0]['balance'], errors='coerce')
+        # Ensure we read opening balance from local reconciliation if available
+        first_op = None
+        if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
+            first_op = st.session_state.local_reconciliation_results[0]["opening_balance"]
+            
+        if first_op is not None:
+            opening_bal = first_op
+        else:
+            # Fallback calculation
+            raw_bal = pd.to_numeric(df.iloc[0]['balance'], errors='coerce')
+            raw_deb = pd.to_numeric(df.iloc[0]['debit'], errors='coerce')
+            raw_cred = pd.to_numeric(df.iloc[0]['credit'], errors='coerce')
+            
+            val_bal = float(raw_bal) if pd.notna(raw_bal) else 0.0
+            val_deb = float(raw_deb) if pd.notna(raw_deb) else 0.0
+            val_cred = float(raw_cred) if pd.notna(raw_cred) else 0.0
+            
+            opening_bal = val_bal + val_deb - val_cred if (pd.notna(raw_deb) or pd.notna(raw_cred)) else val_bal
+            
         closing_bal = pd.to_numeric(df.iloc[-1]['balance'], errors='coerce')
+        closing_bal = float(closing_bal) if pd.notna(closing_bal) else 0.0
         net_flow = total_credits - total_debits
         
         # Layout metric cards
