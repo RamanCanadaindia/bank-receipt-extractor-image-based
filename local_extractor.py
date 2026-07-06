@@ -259,7 +259,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                         # Clean amounts helper
                         is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
                         
-                        if x_mid < 70.0: # Leftmost is date (e.g. 'Jan 01')
+                        if x_mid < 95.0: # Leftmost is date (e.g. 'Jan 01')
                             date_tokens.append(text_token)
                         elif deb_range[0] <= x_mid < deb_range[1] and is_numeric:
                             debit_tokens.append(text_token)
@@ -324,6 +324,27 @@ def extract_digital_pdf(pdf_path, bank_name):
                 transactions[-1]["description"] += " " + desc
             continue
             
+        # Check if this row is a continuation row containing only amounts for the previous transaction
+        temp_debit = None
+        temp_credit = None
+        temp_balance = None
+        try:
+            if debit_raw: temp_debit = float(debit_raw)
+        except ValueError: pass
+        try:
+            if credit_raw: temp_credit = float(credit_raw)
+        except ValueError: pass
+        try:
+            if balance_raw: temp_balance = float(balance_raw)
+        except ValueError: pass
+
+        if not date_raw and not desc and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
+            if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None:
+                transactions[-1]["debit"] = temp_debit
+                transactions[-1]["credit"] = temp_credit
+                transactions[-1]["balance"] = temp_balance
+                continue
+
         # Parse numeric values
         debit = None
         credit = None
