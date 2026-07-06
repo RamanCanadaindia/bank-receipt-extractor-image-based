@@ -891,10 +891,58 @@ if uploaded_files:
                         "GST Rate": meta.get("gst_rate")
                     })
                 df_rules = pd.DataFrame(rules_data)
-                st.dataframe(df_rules, use_container_width=True)
                 
-                # Option to clear rules
+                df_edited_rules = st.data_editor(
+                    df_rules,
+                    column_config={
+                        "Saved Category": st.column_config.SelectboxColumn(
+                            "Saved Category",
+                            options=[
+                                "Accounting Fees", "Advertising Expense", "Bank Charges", "Business taxes",
+                                "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
+                                "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Rent",
+                                "Repairs and maintenance", "Salaries and wages", "Subcontract Expense",
+                                "Telephone Expense", "Trade Sales", "Travel Expense", "Truck Loan", "Vehicle Asset",
+                                "Vehicle Expense", "Equipment rental/lease", "Dumping Charges", "Utilities",
+                                "Other Expenses", "Revenue / Deposits", "Uncategorized"
+                            ],
+                            required=True
+                        ),
+                        "GST Rate": st.column_config.SelectboxColumn(
+                            "GST Rate",
+                            options=["0%", "5%", "7%", "12%", ""]
+                        )
+                    },
+                    num_rows="dynamic",
+                    use_container_width=True,
+                    key="rules_editor_key"
+                )
+                
+                # Option to save edits or clear rules
                 col_del1, col_del2 = st.columns([3, 1])
+                with col_del1:
+                    save_edits = st.button("💾 Save Changes to Rules Database", key="save_rules_edits_btn")
+                    if save_edits:
+                        new_rules = {}
+                        for _, row in df_edited_rules.iterrows():
+                            desc = str(row.get("Merchant Description", "")).strip()
+                            cat = str(row.get("Saved Category", "")).strip()
+                            gifi = str(row.get("GIFI Code", "")).strip()
+                            gst = str(row.get("GST Rate", "")).strip()
+                            if desc and cat:
+                                new_rules[desc] = {
+                                    "category": cat,
+                                    "gifi_code": gifi,
+                                    "gst_rate": gst
+                                }
+                        user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
+                        try:
+                            with open(user_rules_path, "w", encoding="utf-8") as f:
+                                json.dump(new_rules, f, indent=4, ensure_ascii=False)
+                            st.success("🎉 Rules database updated successfully!")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to save changes: {e}")
                 with col_del2:
                     clear_all = st.button("🗑️ Clear All Saved Rules", key="clear_all_rules_btn_bank")
                     if clear_all:
