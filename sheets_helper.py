@@ -14,13 +14,17 @@ SCOPES = [
 def get_gspread_client():
     """
     Initializes and returns a gspread client using the service account credentials in st.secrets.
+    Supports either the TOML structure under [gcp_service_account] or the raw JSON string under gcp_service_account_json.
     """
+    import json
     try:
-        # Check if GCP service account secret is present
-        if "gcp_service_account" not in st.secrets:
-            raise KeyError("gcp_service_account key not found in Streamlit secrets.")
+        if "gcp_service_account_json" in st.secrets:
+            credentials_dict = json.loads(st.secrets["gcp_service_account_json"])
+        elif "gcp_service_account" in st.secrets:
+            credentials_dict = dict(st.secrets["gcp_service_account"])
+        else:
+            raise KeyError("Neither 'gcp_service_account' nor 'gcp_service_account_json' keys found in Streamlit secrets.")
             
-        credentials_dict = dict(st.secrets["gcp_service_account"])
         creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:

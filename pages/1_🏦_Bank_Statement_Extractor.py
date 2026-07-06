@@ -476,7 +476,7 @@ if uploaded_files:
         st.markdown("---")
         st.subheader("📤 Google Sheets Integration")
         
-        has_sheets_secrets = "gcp_service_account" in st.secrets and "google_sheets" in st.secrets
+        has_sheets_secrets = "gcp_service_account" in st.secrets or "gcp_service_account_json" in st.secrets
         if not has_sheets_secrets:
             st.warning("⚠️ Google Sheets credentials are not configured in secrets. Please configure secrets.toml or Streamlit Cloud Settings to enable sync.")
         else:
