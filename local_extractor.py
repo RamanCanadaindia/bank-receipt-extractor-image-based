@@ -170,31 +170,34 @@ def extract_digital_pdf(pdf_path, bank_name):
             pdf_path.seek(0)
         with pdfplumber.open(pdf_path) as pdf:
             for page in pdf.pages:
-                # Find vertical coordinates of column headers like withdrawal, debit, deposit, credit
                 words = page.extract_words()
+                # Find vertical coordinates of column headers inside the actual Transaction table header row
+                header_top = None
+                for w in words:
+                    w_text = w["text"].lower()
+                    if w_text in ("date", "description"):
+                        header_top = w["top"]
+                        break
                 
                 # Check column X coordinates
                 debit_x_coords = []
                 credit_x_coords = []
                 balance_x_coords = []
                 
-                for w in words:
-                    w_text = w["text"].lower()
-                    if w_text in ("withdrawals", "debit", "payments", "charges", "withdrawals($)"):
-                        debit_x_coords.append((w["x0"], w["x1"]))
-                    elif w_text in ("deposits", "credit", "receipts", "deposits($)"):
-                        credit_x_coords.append((w["x0"], w["x1"]))
-                    elif w_text in ("balance", "balance($)"):
-                        balance_x_coords.append((w["x0"], w["x1"]))
+                if header_top is not None:
+                    for w in words:
+                        # Allow height tolerance of 5 pt to capture all headers on the same row
+                        if abs(w["top"] - header_top) <= 5.0:
+                            w_text = w["text"].lower()
+                            if w_text in ("withdrawals", "debit", "payments", "charges", "withdrawals($)"):
+                                debit_x_coords.append((w["x0"], w["x1"]))
+                            elif w_text in ("deposits", "credit", "receipts", "deposits($)"):
+                                credit_x_coords.append((w["x0"], w["x1"]))
+                            elif w_text in ("balance", "balance($)"):
+                                balance_x_coords.append((w["x0"], w["x1"]))
                 
                 # Default fallback X ranges based on bank layouts
                 if bank_name == "RBC":
-                    # RBC typical columns: Description is col 0, Debit/Withdrawal is col 1, Credit/Deposit is col 2, Balance is col 3
-                    # Width ranges in pt (0 to 612):
-                    # Description: 10 to 300
-                    # Debit: 300 to 410
-                    # Credit: 410 to 510
-                    # Balance: 510 to 600
                     deb_range = (300.0, 410.0)
                     cred_range = (410.0, 510.0)
                     bal_range = (510.0, 600.0)
@@ -212,19 +215,22 @@ def extract_digital_pdf(pdf_path, bank_name):
                     cred_range = (400.0, 500.0)
                     bal_range = (500.0, 600.0)
                 
-                # If we detected actual header coordinates, use them to build custom ranges!
+                # Update ranges if actual table header coordinates detected (with safety limit > 200)
                 if debit_x_coords:
                     min_x = min(coord[0] for coord in debit_x_coords)
                     max_x = max(coord[1] for coord in debit_x_coords)
-                    deb_range = (min_x - 10, max_x + 10)
+                    if min_x > 200.0:
+                        deb_range = (min_x - 10, max_x + 10)
                 if credit_x_coords:
                     min_x = min(coord[0] for coord in credit_x_coords)
                     max_x = max(coord[1] for coord in credit_x_coords)
-                    cred_range = (min_x - 10, max_x + 10)
+                    if min_x > 200.0:
+                        cred_range = (min_x - 10, max_x + 10)
                 if balance_x_coords:
                     min_x = min(coord[0] for coord in balance_x_coords)
                     max_x = max(coord[1] for coord in balance_x_coords)
-                    bal_range = (min_x - 10, max_x + 10)
+                    if min_x > 200.0:
+                        bal_range = (min_x - 10, max_x + 10)
                 
                 # Group words into lines based on vertical coordinate (top)
                 # Group words by rounded top value (to group cells on same horizontal row)
