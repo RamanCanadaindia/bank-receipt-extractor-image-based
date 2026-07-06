@@ -137,6 +137,75 @@ def parse_date(date_str, start_year, end_year, prev_month_num=None):
         
     return None, None
 
+def looks_like_date_word(word):
+    """
+    Checks if a string word is a valid date token (digits, month abbreviation, month name).
+    """
+    w = str(word).lower().strip().strip(",.*:()#")
+    if not w:
+        return False
+    if w.isdigit():
+        return True
+    months = {
+        "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+        "january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
+        "janv", "fevr", "mars", "avr", "mai", "juin", "juil", "aout", "sept", "dece", "decembre"
+    }
+    if w in months:
+        return True
+    if "/" in w or "-" in w:
+        if any(c.isdigit() for c in w):
+            return True
+    return False
+
+def is_disclaimer_or_metadata(desc_text):
+    """
+    Checks if a description string belongs to footer metadata,
+    legal disclaimers, or statement headers.
+    """
+    txt = str(desc_text).lower().strip()
+    if not txt:
+        return False
+        
+    patterns = [
+        r'\bpage \d+',
+        r'continued on next page',
+        r'trademark of',
+        r'registered trademark',
+        r'interac is a registered',
+        r'important:',
+        r'foreign currency',
+        r'cibc account statement',
+        r'account summary',
+        r'branch transit number',
+        r'opening balance on',
+        r'closing balance on',
+        r'statement period',
+        r'for questions on this update',
+        r'contact us by phone',
+        r'tty hearing impaired',
+        r'outside canada',
+        r'www\.cibc\.com',
+        r'balance forward',
+        r'transaction details',
+        r'\bper-20\d{2}\b',
+        r'^\d{4,}\s+per-\d+$',
+        r'bankbook or paperless',
+        r'statement: \d+ days',
+        r'this rule does not apply',
+        r'your rights under your',
+        r'if you withdraw foreign',
+        r'\bof cibc\b',
+        r'transaction amount reflects',
+        r'exchange rate displayed',
+        r'converted amount',
+        r'converted to canadian'
+    ]
+    for p in patterns:
+        if re.search(p, txt):
+            return True
+    return False
+
 def extract_digital_pdf(pdf_path, bank_name):
     """
     Extracts transactions from a digital text statement PDF using pdfplumber coordinates.
@@ -248,6 +317,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                 
                 # Sort lines vertically from top to bottom
                 for top_val in sorted(lines_dict.keys()):
+                    if header_top is not None and top_val < (header_top - 2.0):
+                        continue
                     line_words = sorted(lines_dict[top_val], key=lambda x: x["x0"])
                     
                     # Group words into tokens based on X coordinates
@@ -265,7 +336,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                         # Clean amounts helper
                         is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
                         
-                        if x_mid < 95.0: # Leftmost is date (e.g. 'Jan 01')
+                        if x_mid < 95.0 and looks_like_date_word(text_token): # Leftmost is date (e.g. 'Jan 01')
                             date_tokens.append(text_token)
                         elif deb_range[0] <= x_mid < deb_range[1] and is_numeric:
                             debit_tokens.append(text_token)
@@ -293,56 +364,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                         })
     except Exception as e:
         print(f"Error extracting digital pdf text via coordinates: {e}")
-        return []
+        return [], 0.0
         
-def is_disclaimer_or_metadata(desc_text):
-    """
-    Checks if a description string belongs to footer metadata,
-    legal disclaimers, or statement headers.
-    """
-    txt = str(desc_text).lower().strip()
-    if not txt:
-        return False
-        
-    patterns = [
-        r'\bpage \d+',
-        r'continued on next page',
-        r'trademark of',
-        r'registered trademark',
-        r'interac is a registered',
-        r'important:',
-        r'foreign currency',
-        r'cibc account statement',
-        r'account summary',
-        r'branch transit number',
-        r'opening balance on',
-        r'closing balance on',
-        r'statement period',
-        r'for questions on this update',
-        r'contact us by phone',
-        r'tty hearing impaired',
-        r'outside canada',
-        r'www\.cibc\.com',
-        r'balance forward',
-        r'transaction details',
-        r'\bper-20\d{2}\b',
-        r'^\d{4,}\s+per-\d+$',
-        r'bankbook or paperless',
-        r'statement: \d+ days',
-        r'this rule does not apply',
-        r'your rights under your',
-        r'if you withdraw foreign',
-        r'\bof cibc\b',
-        r'transaction amount reflects',
-        r'exchange rate displayed',
-        r'converted amount',
-        r'converted to canadian'
-    ]
-    for p in patterns:
-        if re.search(p, txt):
-            return True
-    return False
-
     # 3. Process, merge multiline descriptions, and parse values
     transactions = []
     prev_date = None
@@ -351,11 +374,23 @@ def is_disclaimer_or_metadata(desc_text):
     # Store opening balance
     opening_bal = 0.0
     opening_found = False
+    seen_closing_balance = False
     
     for r in raw_rows:
         date_raw = r["date_raw"]
         desc = r["description"]
         
+        if seen_closing_balance:
+            continue
+            
+        desc_lower = desc.lower()
+        if "closing balance" in desc_lower or "ending balance" in desc_lower:
+            seen_closing_balance = True
+            continue
+            
+        if "date" in desc_lower and "description" in desc_lower:
+            continue
+            
         # Skip disclaimer/metadata rows
         if is_disclaimer_or_metadata(desc):
             continue
