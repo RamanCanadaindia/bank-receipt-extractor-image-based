@@ -682,31 +682,46 @@ if uploaded_files:
                     # 1. Load Category Map and apply pre-categorization
                     cat_map_df = sheets_helper.load_category_map(spreadsheet)
                     
-                    # Create normalized schema copy for upload
+                    # Create normalized schema copy for upload with exact requested column order
                     upload_df = pd.DataFrame()
+                    
+                    # 1. Date
+                    upload_df['transaction_date'] = df_edited['date']
+                    
+                    # 2. Description
+                    upload_df['description'] = df_edited['description']
+                    
+                    # 3. Amount (combine debit and credit for all sheets, debit is negative, credit is positive)
+                    amounts = []
+                    for idx, row in df_edited.iterrows():
+                        deb = pd.to_numeric(row.get('debit'), errors='coerce')
+                        cred = pd.to_numeric(row.get('credit'), errors='coerce')
+                        val_deb = float(deb) if pd.notna(deb) else 0.0
+                        val_cred = float(cred) if pd.notna(cred) else 0.0
+                        
+                        if val_cred != 0.0:
+                            amounts.append(val_cred)
+                        elif val_deb != 0.0:
+                            amounts.append(-val_deb)
+                        else:
+                            amounts.append(0.0)
+                    upload_df['amount'] = amounts
+                    
+                    # 4. Running Balance
+                    upload_df['running_balance'] = pd.to_numeric(df_edited['balance'], errors='coerce').fillna(0)
+                    
+                    # Remaining columns (order does not matter)
                     upload_df['client_name'] = [client_name] * len(df_edited)
                     upload_df['account_name'] = [account_name] * len(df_edited)
                     upload_df['statement_start'] = [statement_start.isoformat()] * len(df_edited)
                     upload_df['statement_end'] = [statement_end.isoformat()] * len(df_edited)
-                    upload_df['transaction_date'] = df_edited['date']
-                    upload_df['description'] = df_edited['description']
-                    
-                    # Numeric amounts
-                    debits = pd.to_numeric(df_edited['debit'], errors='coerce')
-                    credits = pd.to_numeric(df_edited['credit'], errors='coerce')
-                    
-                    upload_df['amount'] = debits.fillna(0) + credits.fillna(0)
                     upload_df['debit_credit_flag'] = ['debit' if pd.notna(d) and d != "" else 'credit' for d in df_edited['debit']]
-                    upload_df['running_balance'] = pd.to_numeric(df_edited['balance'], errors='coerce').fillna(0)
-                    
-                    # pre-populate user edits first
                     upload_df['category'] = df_edited['category']
-                    upload_df['subcategory'] = "" # default
+                    upload_df['subcategory'] = ""
                     
                     # Apply Category Map for remaining empty categories
                     upload_df = sheets_helper.apply_category_map(upload_df, cat_map_df)
                     
-                    # Other metadata
                     upload_df['source_file'] = df_edited['source_file'] if 'source_file' in df_edited.columns else ""
                     upload_df['institution'] = df_edited['institution'] if 'institution' in df_edited.columns else institution
                     upload_df['upload_timestamp'] = datetime.now().isoformat()
