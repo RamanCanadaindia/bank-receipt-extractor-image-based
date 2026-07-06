@@ -295,6 +295,49 @@ def extract_digital_pdf(pdf_path, bank_name):
         print(f"Error extracting digital pdf text via coordinates: {e}")
         return []
         
+def is_disclaimer_or_metadata(desc_text):
+    """
+    Checks if a description string belongs to footer metadata,
+    legal disclaimers, or statement headers.
+    """
+    txt = str(desc_text).lower().strip()
+    if not txt:
+        return False
+        
+    patterns = [
+        r'\bpage \d+',
+        r'continued on next page',
+        r'trademark of',
+        r'registered trademark',
+        r'interac is a registered',
+        r'important:',
+        r'foreign currency',
+        r'cibc account statement',
+        r'account summary',
+        r'branch transit number',
+        r'opening balance on',
+        r'closing balance on',
+        r'statement period',
+        r'for questions on this update',
+        r'contact us by phone',
+        r'tty hearing impaired',
+        r'outside canada',
+        r'www\.cibc\.com',
+        r'balance forward',
+        r'transaction details',
+        r'\bper-20\d{2}\b',
+        r'^\d{4,}\s+per-\d+$',
+        r'bankbook or paperless',
+        r'statement: \d+ days',
+        r'this rule does not apply',
+        r'your rights under your',
+        r'if you withdraw foreign'
+    ]
+    for p in patterns:
+        if re.search(p, txt):
+            return True
+    return False
+
     # 3. Process, merge multiline descriptions, and parse values
     transactions = []
     prev_date = None
@@ -307,6 +350,10 @@ def extract_digital_pdf(pdf_path, bank_name):
     for r in raw_rows:
         date_raw = r["date_raw"]
         desc = r["description"]
+        
+        # Skip disclaimer/metadata rows
+        if is_disclaimer_or_metadata(desc):
+            continue
         debit_raw = r["debit_raw"]
         credit_raw = r["credit_raw"]
         balance_raw = r["balance_raw"]
