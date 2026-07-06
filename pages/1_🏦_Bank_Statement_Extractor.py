@@ -136,9 +136,9 @@ target_spreadsheet_id = st.sidebar.text_input(
 )
 dest_sheet_override = st.sidebar.selectbox(
     "Destination Sheet Tab",
-    ["[Auto-detect based on file]", "Bank Transactions", "Bank Single Column", "Credit Card"],
+    ["Create New Tab", "[Auto-detect based on file]", "Bank Transactions", "Bank Single Column", "Credit Card"],
     index=0,
-    help="Select the target Google Sheet tab to upload the transactions to. Auto-detect will route based on statement type."
+    help="Select the target Google Sheet tab. 'Create New Tab' will dynamically create a new tab in your Google Sheet named after the statement filename."
 )
 
 st.sidebar.markdown("---")
@@ -793,7 +793,14 @@ if uploaded_files:
                     # 3. Determine target tab routing and upload
                     target_tabs = []
                     for idx, row_up in new_df.iterrows():
-                        if dest_sheet_override == "[Auto-detect based on file]":
+                        if dest_sheet_override == "Create New Tab":
+                            fn = str(row_up.get('source_file', 'New_Transactions'))
+                            if fn.lower().endswith('.pdf'):
+                                fn = fn[:-4]
+                            # Sanitize Sheet worksheet name rules (limit 100 chars, no special chars)
+                            fn = fn.replace(':', '_').replace('/', '_').replace('\\', '_').replace('?', '_').replace('*', '_').replace('[', '_').replace(']', '_')
+                            target_tabs.append(fn[:100])
+                        elif dest_sheet_override == "[Auto-detect based on file]":
                             fn = str(row_up.get('source_file', '')).lower()
                             bank = str(row_up.get('institution', '')).lower()
                             
