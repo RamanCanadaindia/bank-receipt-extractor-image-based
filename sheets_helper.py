@@ -27,22 +27,30 @@ def get_gspread_client():
         st.error(f"❌ Failed to authenticate with Google Sheets: {e}")
         return None
 
-def get_spreadsheet(client):
+def get_spreadsheet(client, spreadsheet_id):
     """
-    Retrieves the target spreadsheet from client using configured spreadsheet_id in secrets.
+    Retrieves the target spreadsheet from client using a spreadsheet ID or URL.
     """
-    if "google_sheets" not in st.secrets or "spreadsheet_id" not in st.secrets["google_sheets"]:
-        st.error("❌ google_sheets.spreadsheet_id not configured in secrets.")
+    if not spreadsheet_id:
+        st.error("❌ Google Spreadsheet ID/URL is empty.")
         return None
-    spreadsheet_id = st.secrets["google_sheets"]["spreadsheet_id"]
+        
+    # If a full URL was pasted, parse out the ID automatically
+    if "docs.google.com/spreadsheets" in str(spreadsheet_id):
+        try:
+            parts = str(spreadsheet_id).split("/d/")
+            if len(parts) > 1:
+                spreadsheet_id = parts[1].split("/")[0]
+        except Exception:
+            pass
+            
     try:
         return client.open_by_key(spreadsheet_id)
     except gspread.exceptions.SpreadsheetNotFound:
-        # Try as a spreadsheet title
         try:
             return client.open(spreadsheet_id)
         except Exception:
-            st.error(f"❌ Spreadsheet ID '{spreadsheet_id}' not found or inaccessible.")
+            st.error(f"❌ Spreadsheet ID/URL '{spreadsheet_id}' not found or inaccessible. Make sure you shared it with the service account email.")
             return None
     except Exception as e:
         st.error(f"❌ Error opening spreadsheet: {e}")

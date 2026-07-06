@@ -116,6 +116,11 @@ default_end = date(2024, 12, 31)
 
 statement_start = st.sidebar.date_input("Statement Start Date", value=default_start)
 statement_end = st.sidebar.date_input("Statement End Date", value=default_end)
+target_spreadsheet_id = st.sidebar.text_input(
+    "Target Google Sheet ID / URL",
+    value=st.secrets.get("google_sheets", {}).get("spreadsheet_id", ""),
+    help="Paste the target Google Sheet's browser URL or its ID here. Ensure you've shared the Sheet with the service account email."
+)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### How it works:")
@@ -485,7 +490,7 @@ if uploaded_files:
             import sheets_helper
             with st.spinner("Connecting to Google Sheets..."):
                 client = sheets_helper.get_gspread_client()
-                spreadsheet = sheets_helper.get_spreadsheet(client) if client else None
+                spreadsheet = sheets_helper.get_spreadsheet(client, target_spreadsheet_id) if client else None
                 
             if spreadsheet:
                 with st.spinner("Performing pre-categorization, duplicate checking, and upload..."):
