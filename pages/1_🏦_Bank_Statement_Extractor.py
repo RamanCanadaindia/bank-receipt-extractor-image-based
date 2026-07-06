@@ -1053,3 +1053,56 @@ if uploaded_files:
                         st.error("Could not identify Keyword and Category columns in the uploaded file.")
                 except Exception as e:
                     st.error(f"Failed to import rules: {e}")
+                    
+            # Copy-Paste Rules Area
+            st.write("")
+            st.markdown("### 📋 Bulk Paste Rules (From Excel/Spreadsheet)")
+            st.markdown("Paste columns of keywords and categories directly from your spreadsheet below (one pair per line, separated by tabs or commas):")
+            pasted_text = st.text_area(
+                "Paste your mappings here (e.g. 'Rogers \\t Telephone Expense')",
+                placeholder="Esso\tVehicle Expense\nRogers\tTelephone Expense",
+                height=150,
+                key="pasted_rules_textarea"
+            )
+            if st.button("📥 Import Pasted Rules", key="import_pasted_rules_btn"):
+                if pasted_text.strip():
+                    try:
+                        imported_rules = categorizer.get_user_rules()
+                        import_count = 0
+                        lines = pasted_text.strip().split('\n')
+                        for line in lines:
+                            if not line.strip():
+                                continue
+                            
+                            # Split by tab if present, else by comma
+                            if '\t' in line:
+                                parts = line.split('\t')
+                            else:
+                                parts = line.split(',')
+                                
+                            if len(parts) >= 2:
+                                k_val = parts[0].strip()
+                                cat_val = parts[1].strip()
+                                # Clean quotes if present
+                                k_val = k_val.strip('\'"').strip()
+                                cat_val = cat_val.strip('\'"').strip()
+                                
+                                if k_val and cat_val:
+                                    imported_rules[k_val] = {
+                                        "category": cat_val,
+                                        "gifi_code": "",
+                                        "gst_rate": "0%"
+                                    }
+                                    import_count += 1
+                        
+                        if import_count > 0:
+                            # Save
+                            user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
+                            with open(user_rules_path, "w", encoding="utf-8") as f:
+                                json.dump(imported_rules, f, indent=4, ensure_ascii=False)
+                            st.success(f"🎉 Successfully imported {import_count} pasted rules!")
+                            st.rerun()
+                        else:
+                            st.warning("No valid rules could be parsed from the pasted text. Make sure you have at least a keyword and category per line.")
+                    except Exception as e:
+                        st.error(f"Failed to import pasted rules: {e}")
