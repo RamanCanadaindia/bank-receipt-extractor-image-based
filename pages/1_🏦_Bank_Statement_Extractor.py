@@ -92,7 +92,7 @@ api_key = st.sidebar.text_input(
 extraction_engine = st.sidebar.radio(
     "Extraction Engine",
     ["Gemini AI Engine (Cloud OCR)", "Local Python Engine (Private & Offline)"],
-    index=0,
+    index=1,
     help="Select 'Local Python Engine' to parse digital text statements locally using custom layout rules, or 'Gemini AI Engine' to use Cloud OCR."
 )
 
