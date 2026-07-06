@@ -146,10 +146,10 @@ def apply_category_map(df, category_map_df):
 
 def load_existing_hashes(spreadsheet):
     """
-    Loads all existing hash keys from both Raw_Transactions and Needs_Review worksheets.
+    Loads all existing hash keys from new and fallback worksheets to prevent duplicates.
     """
     existing_hashes = set()
-    for tab in ["Raw_Transactions", "Needs_Review"]:
+    for tab in ["Bank Transactions", "Bank Single Column", "Credit Card", "Raw_Transactions", "Needs_Review"]:
         try:
             wks = spreadsheet.worksheet(tab)
             # Find hash_key column index

@@ -134,6 +134,12 @@ target_spreadsheet_id = st.sidebar.text_input(
     value=st.secrets.get("google_sheets", {}).get("spreadsheet_id", ""),
     help="Paste the target Google Sheet's browser URL or its ID here. Ensure you've shared the Sheet with the service account email."
 )
+dest_sheet_override = st.sidebar.selectbox(
+    "Destination Sheet Tab",
+    ["[Auto-detect based on file]", "Bank Transactions", "Bank Single Column", "Credit Card"],
+    index=0,
+    help="Select the target Google Sheet tab to upload the transactions to. Auto-detect will route based on statement type."
+)
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### How it works:")
@@ -769,47 +775,75 @@ if uploaded_files:
                     
                     duplicate_count = len(dupes_df)
                     
-                    # 3. Split clean and review rows
-                    clean_df, review_df = sheets_helper.split_clean_and_review(new_df)
+                    # 3. Determine target tab routing and upload
+                    target_tabs = []
+                    for idx, row_up in new_df.iterrows():
+                        if dest_sheet_override == "[Auto-detect based on file]":
+                            fn = str(row_up.get('source_file', '')).lower()
+                            bank = str(row_up.get('institution', '')).lower()
+                            
+                            if any(x in fn for x in ["visa", "mastercard", "credit", "card", "cc"]) or "visa" in bank or "mastercard" in bank or "credit" in bank:
+                                target_tabs.append("Credit Card")
+                            elif "td" in bank or "tangerine" in bank:
+                                target_tabs.append("Bank Single Column")
+                            else:
+                                target_tabs.append("Bank Transactions")
+                        else:
+                            target_tabs.append(dest_sheet_override)
+                            
+                    new_df['target_tab'] = target_tabs
                     
-                    review_count = len(review_df)
-                    appended_count = len(clean_df)
+                    # Group and upload
+                    success = True
+                    uploaded_sheets = []
+                    appended_count = len(new_df)
                     
-                    # 4. Append to worksheet tabs
-                    success_clean = sheets_helper.append_rows_to_sheet(spreadsheet, "Raw_Transactions", clean_df)
-                    success_review = sheets_helper.append_rows_to_sheet(spreadsheet, "Needs_Review", review_df)
-                    
+                    if appended_count > 0:
+                        for tab_name, group_df in new_df.groupby('target_tab'):
+                            # Drop the temporary routing column before upload
+                            group_to_upload = group_df.drop(columns=['target_tab'])
+                            success_group = sheets_helper.append_rows_to_sheet(spreadsheet, tab_name, group_to_upload)
+                            if success_group:
+                                uploaded_sheets.append(tab_name)
+                            else:
+                                success = False
+                                
                     # 5. Log processing run
-                    status = "SUCCESS" if (success_clean and success_review) else "PARTIAL_FAILURE"
+                    status = "SUCCESS" if success else "PARTIAL_FAILURE"
                     summary_dict = {
                         "file_count": len(uploaded_files),
                         "row_count": extracted_count,
                         "duplicates_count": duplicate_count,
-                        "review_count": review_count,
+                        "review_count": 0,
                         "status": status
                     }
                     sheets_helper.log_processing_run(spreadsheet, summary_dict)
                     
                     # 6. Display Processing Summary metrics
-                    st.success("🎉 Direct Google Sheets Sync Completed Successfully!")
-                    
-                    sc1, sc2, sc3, sc4 = st.columns(4)
+                    if success:
+                        st.success(f"🎉 Direct Google Sheets Sync Completed Successfully!")
+                    else:
+                        st.warning("⚠️ Direct Google Sheets Sync completed with some errors.")
+                        
+                    sc1, sc2, sc3 = st.columns(3)
                     with sc1:
                         st.metric("Extracted", extracted_count)
                     with sc2:
                         st.metric("Duplicates Skipped", duplicate_count)
                     with sc3:
-                        st.metric("Appended to Raw", appended_count)
-                    with sc4:
-                        st.metric("Sent to Review", review_count)
+                        st.metric("Appended to Sheet", appended_count)
+                        
+                    if uploaded_sheets:
+                        st.info(f"📁 Uploaded transactions directly to target worksheet tabs: **{', '.join(set(uploaded_sheets))}**")
                         
                     # Previews
-                    if not clean_df.empty:
-                        with st.expander("📄 Preview Appended Clean Rows", expanded=False):
-                            st.dataframe(clean_df, use_container_width=True)
-                    if not review_df.empty:
-                        with st.expander("⚠️ Preview Sent to Review Rows", expanded=True):
-                            st.dataframe(review_df, use_container_width=True)
+                    if not new_df.empty:
+                        with st.expander("📄 Preview Appended Transactions", expanded=False):
+                            disp_df = new_df.drop(columns=['target_tab'], errors='ignore')
+                            st.dataframe(disp_df, use_container_width=True)
+                    if not dupes_df.empty:
+                        with st.expander("⏭️ Preview Skipped Duplicates", expanded=False):
+                            st.dataframe(dupes_df, use_container_width=True)
 
         # View Learned Rules expander
         st.write("")
