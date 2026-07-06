@@ -311,6 +311,69 @@ Make sure you extract EVERY single transaction row in the table."""
             
     return []
 
+def call_gemini_api_for_text(api_key, model, full_text):
+    """
+    Calls the Gemini API to parse the full extracted digital text from a PDF statement.
+    """
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    
+    prompt = f"""Extract all transaction rows from the following bank statement text.
+Return a JSON object with a single key 'transactions', which is a list of objects. Each transaction object MUST contain:
+- 'date': The transaction date in 'YYYY-MM-DD' format. Look at the statement year context (e.g. '2026') in the text to determine the correct year.
+- 'description': The exact description text (e.g. 'PREAUTHORIZED DEBIT', 'E-TRANSFER').
+- 'debit': The debit amount as a float (or null if not present).
+- 'credit': The credit amount as a float (or null if not present).
+- 'balance': The balance amount as a float.
+
+Do not include any currency symbols or commas in the numeric fields.
+Make sure you extract EVERY single transaction row in the table.
+
+Bank Statement Text:
+{full_text}"""
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json"
+        }
+    }
+    
+    headers = {"Content-Type": "application/json"}
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST"
+    )
+    
+    import time
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=30) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                candidates = res_data.get("candidates", [])
+                if not candidates:
+                    return []
+                text_response = candidates[0]["content"]["parts"][0]["text"].strip()
+                
+                if text_response.startswith("```"):
+                    text_response = re.sub(r"^```(?:json|JSON)?\n", "", text_response)
+                    text_response = re.sub(r"\n```$", "", text_response)
+                text_response = text_response.strip()
+                
+                return json.loads(text_response).get("transactions", [])
+        except Exception as e:
+            print(f"Text parsing retry attempt {attempt+1}: {e}")
+            time.sleep(1)
+            
+    return []
+
 def safe_float(val):
     if val is None:
         return 0.0

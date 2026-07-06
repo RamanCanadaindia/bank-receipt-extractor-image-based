@@ -78,10 +78,14 @@ This tool will automatically verify the mathematical integrity of the statement'
 st.sidebar.header("⚙️ Configuration")
 
 # API Key management
+api_key_default = os.environ.get("GEMINI_API_KEY", "")
+if not api_key_default and "GEMINI_API_KEY" in st.secrets:
+    api_key_default = st.secrets["GEMINI_API_KEY"]
+    
 api_key = st.sidebar.text_input(
     "Google AI Studio API Key",
     type="password",
-    value=os.environ.get("GEMINI_API_KEY", ""),
+    value=api_key_default,
     help="Required for scanned/image-only PDFs. Get a free key at https://aistudio.google.com/"
 )
 
@@ -178,6 +182,10 @@ if uploaded_files:
             if is_digital:
                 with st.spinner(f"Extracting digital text from {u_file.name}..."):
                     transactions = extract_statement.parse_digital_text(text_pages)
+                    if not transactions and api_key:
+                        with st.spinner(f"No transactions matched local regex. Falling back to Gemini API Text-parsing..."):
+                            full_text = "\n".join(text_pages)
+                            transactions = extract_statement.call_gemini_api_for_text(api_key, model, full_text)
             else:
                 # Scanned statement - requires API Key
                 if not api_key:
