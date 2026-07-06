@@ -331,7 +331,12 @@ def is_disclaimer_or_metadata(desc_text):
         r'statement: \d+ days',
         r'this rule does not apply',
         r'your rights under your',
-        r'if you withdraw foreign'
+        r'if you withdraw foreign',
+        r'\bof cibc\b',
+        r'transaction amount reflects',
+        r'exchange rate displayed',
+        r'converted amount',
+        r'converted to canadian'
     ]
     for p in patterns:
         if re.search(p, txt):
