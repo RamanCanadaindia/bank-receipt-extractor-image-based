@@ -263,7 +263,21 @@ def is_disclaimer_or_metadata(desc_text):
         r'payment period extensions',
         r'minimum payment',
         r'refer to the cibc',
-        r'denotes transaction in'
+        r'denotes transaction in',
+        r'your interest',
+        r'total interest',
+        r'annual interest rate',
+        r'your payments',
+        r'payments and credits',
+        r'pre-authorized payment',
+        r'amount due',
+        r'charges and credits',
+        r'card number',
+        r'\btrans\b',
+        r'\bpost\b',
+        r'\bdescription\b',
+        r'\bspend categories\b',
+        r'^your$'
     ]
     for p in patterns:
         if re.search(p, txt):
@@ -477,6 +491,11 @@ def extract_digital_pdf(pdf_path, bank_name):
         # Skip disclaimer/metadata rows
         if is_disclaimer_or_metadata(desc):
             continue
+            
+        desc_clean = desc.lower().strip()
+        if desc_clean.startswith("total") or desc_clean in ("subtotal", "subtotals", "page total", "closing balance"):
+            continue
+            
         debit_raw = r["debit_raw"]
         credit_raw = r["credit_raw"]
         balance_raw = r["balance_raw"]
@@ -566,9 +585,7 @@ def extract_digital_pdf(pdf_path, bank_name):
         if not date_parsed:
             date_parsed = prev_date
             
-        desc_clean = desc.lower().strip()
-        if desc_clean.startswith("total") or desc_clean in ("subtotal", "subtotals", "page total", "closing balance"):
-            continue
+        
             
         if date_parsed or desc or debit is not None or credit is not None:
             transactions.append({
