@@ -916,6 +916,7 @@ if uploaded_files:
                         "GST Rate": meta.get("gst_rate")
                     })
             df_rules = pd.DataFrame(rules_data, columns=["Merchant Description", "Saved Category", "GIFI Code", "GST Rate"])
+            df_rules = df_rules.sort_values(by=["Saved Category", "Merchant Description"])
             
             df_edited_rules = st.data_editor(
                 df_rules,
