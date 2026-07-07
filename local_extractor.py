@@ -145,6 +145,8 @@ def looks_like_date_word(word):
     if not w:
         return False
     if w.isdigit():
+        if len(w) == 4 and (w.startswith("19") or w.startswith("20")):
+            return False
         return True
     months = {
         "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
@@ -308,7 +310,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                     top = round(w["top"], 1)
                     found = False
                     for existing_top in lines_dict.keys():
-                        if abs(existing_top - w["top"]) <= 3.0: # line height tolerance
+                        if abs(existing_top - w["top"]) <= 6.0: # line height tolerance
                             lines_dict[existing_top].append(w)
                             found = True
                             break
@@ -417,7 +419,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                 transactions[-1]["description"] += " " + desc
             continue
             
-        # Check if this row is a continuation row containing only amounts for the previous transaction
+        # Check if this row is a continuation row containing amounts for the previous transaction
         temp_debit = None
         temp_credit = None
         temp_balance = None
@@ -431,8 +433,10 @@ def extract_digital_pdf(pdf_path, bank_name):
             if balance_raw: temp_balance = float(balance_raw)
         except ValueError: pass
 
-        if not date_raw and not desc and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
+        if not date_raw and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
             if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None:
+                if desc:
+                    transactions[-1]["description"] += " " + desc
                 transactions[-1]["debit"] = temp_debit
                 transactions[-1]["credit"] = temp_credit
                 transactions[-1]["balance"] = temp_balance
