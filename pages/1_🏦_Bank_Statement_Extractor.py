@@ -317,12 +317,13 @@ if uploaded_files:
                     # 2. Raw Suggested Category (checks static rules first)
                     ai_cat, _, _ = categorizer.lookup_by_rules(desc)
                     if not ai_cat:
-                        is_cred = pd.to_numeric(row.get('credit'), errors='coerce') > 0 if pd.notna(pd.to_numeric(row.get('credit'), errors='coerce')) else False
-                        ai_cat = "Trade Sales" if is_cred else "Other Expenses"
+                        ai_cat = "Uncategorized"
                         
                     # Standard default fallbacks for assigned category
                     if not d_cat:
-                        d_cat = ai_cat
+                        d_cat = "Uncategorized"
+                        d_gifi = ""
+                        d_gst = ""
                         
                     updated_categories.append(d_cat)
                     updated_suggested.append(ai_cat)

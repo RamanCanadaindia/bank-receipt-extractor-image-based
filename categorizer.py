@@ -263,14 +263,9 @@ def categorize_transactions(api_key, transactions):
             
         # Standard default fallbacks
         if not category:
-            if is_credit:
-                category = "Trade Sales"
-                gifi_code = "8000"
-                gst_rate = "5%"
-            else:
-                category = "Other Expenses"
-                gifi_code = ""
-                gst_rate = "0%"
+            category = "Uncategorized"
+            gifi_code = ""
+            gst_rate = ""
                 
         # Determine raw AI/Static suggested category (prior to user rules override)
         suggested = None
@@ -280,10 +275,8 @@ def categorize_transactions(api_key, transactions):
             cat_rule, _, _ = lookup_by_rules(desc)
             if cat_rule:
                 suggested = cat_rule
-            elif is_credit:
-                suggested = "Trade Sales"
             else:
-                suggested = "Other Expenses"
+                suggested = "Uncategorized"
                 
         new_tx = tx.copy()
         new_tx["category"] = category
