@@ -593,7 +593,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                 "description": desc,
                 "debit": debit,
                 "credit": credit,
-                "balance": balance
+                "balance": balance,
+                "is_credit_card": is_credit_card
             })
             
     # Remove any completely empty or invalid transactions

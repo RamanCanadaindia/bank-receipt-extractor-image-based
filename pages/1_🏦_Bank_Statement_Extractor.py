@@ -342,7 +342,7 @@ if uploaded_files:
                         df = local_extractor.apply_excel_category_map(df, mapping_excel)
                 
                 # Ensure all columns exist and are ordered
-                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'suggested_category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
+                cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'suggested_category', 'gifi_code', 'gst_rate', 'source_file', 'institution', 'is_credit_card']
                 for col in cols_order:
                     if col not in df.columns:
                         df[col] = ""
@@ -366,7 +366,7 @@ if uploaded_files:
                     df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                     
                     # Ensure all columns exist and are ordered
-                    cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'suggested_category', 'gifi_code', 'gst_rate', 'source_file', 'institution']
+                    cols_order = ['source_tab', 'date', 'description', 'debit', 'credit', 'balance', 'category', 'suggested_category', 'gifi_code', 'gst_rate', 'source_file', 'institution', 'is_credit_card']
                     for col in cols_order:
                         if col not in df.columns:
                             df[col] = ""
@@ -506,9 +506,10 @@ if uploaded_files:
                         "AI Suggestion",
                         help="The original suggestion made by the AI or rules engine",
                         width="medium"
-                    )
+                    ),
+                    "is_credit_card": None
                 },
-                disabled=["source_tab", "date", "description", "debit", "credit", "balance", "suggested_category"],
+                disabled=["source_tab", "date", "description", "debit", "credit", "balance", "suggested_category", "is_credit_card"],
                 use_container_width=True,
                 key="editor_key"
             )
@@ -839,7 +840,8 @@ if uploaded_files:
                             fn = str(row_up.get('source_file', '')).lower()
                             bank = str(row_up.get('institution', '')).lower()
                             
-                            if any(x in fn for x in ["visa", "mastercard", "credit", "card", "cc"]) or "visa" in bank or "mastercard" in bank or "credit" in bank:
+                            is_cc_meta = str(row_up.get('is_credit_card', '')).lower() == 'true' or row_up.get('is_credit_card') == True
+                            if is_cc_meta or any(x in fn for x in ["visa", "mastercard", "credit", "card", "cc"]) or "visa" in bank or "mastercard" in bank or "credit" in bank:
                                 target_tabs.append("Credit Card")
                             elif "td" in bank or "tangerine" in bank:
                                 target_tabs.append("Bank Single Column")
@@ -857,8 +859,8 @@ if uploaded_files:
                     
                     if appended_count > 0:
                         for tab_name, group_df in new_df.groupby('target_tab'):
-                            # Drop the temporary routing column before upload
-                            group_to_upload = group_df.drop(columns=['target_tab'])
+                            # Drop the temporary routing columns before upload
+                            group_to_upload = group_df.drop(columns=['target_tab', 'is_credit_card'], errors='ignore')
                             success_group = sheets_helper.append_rows_to_sheet(spreadsheet, tab_name, group_to_upload)
                             if success_group:
                                 uploaded_sheets.append(tab_name)
