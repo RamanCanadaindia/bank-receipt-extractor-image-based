@@ -966,12 +966,25 @@ if uploaded_files:
                     except Exception as e:
                         st.error(f"Failed to save changes: {e}")
             with col_del2:
-                clear_all = st.button("🗑️ Clear All Saved Rules", key="clear_all_rules_btn_bank")
-                if clear_all:
-                    user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
-                    if os.path.exists(user_rules_path):
-                        os.remove(user_rules_path)
+                if st.session_state.get("confirm_clear_all", False):
+                    st.warning("⚠️ Delete ALL rules?")
+                    confirm_yes = st.button("🔥 Yes, Clear All", key="confirm_clear_yes")
+                    if confirm_yes:
+                        user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
+                        if os.path.exists(user_rules_path):
+                            os.remove(user_rules_path)
+                        st.session_state.confirm_clear_all = False
                         st.success("All saved rules cleared! Refreshing...")
+                        st.rerun()
+                        
+                    confirm_no = st.button("❌ Cancel", key="confirm_clear_no")
+                    if confirm_no:
+                        st.session_state.confirm_clear_all = False
+                        st.rerun()
+                else:
+                    clear_all = st.button("🗑️ Clear All Saved Rules", key="clear_all_rules_btn_bank")
+                    if clear_all:
+                        st.session_state.confirm_clear_all = True
                         st.rerun()
                         
             # File Uploader to import custom rules directly to database
