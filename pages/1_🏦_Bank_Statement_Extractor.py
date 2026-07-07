@@ -334,6 +334,15 @@ if uploaded_files:
                         df = df.reset_index(drop=True)
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                 
+                # Assign ending balance to the last transaction row for credit cards
+                if 'statement_ending_balance' in df.columns:
+                    stmt_bals = pd.to_numeric(df['statement_ending_balance'], errors='coerce').dropna()
+                    if not stmt_bals.empty:
+                        ending_val = stmt_bals.iloc[0]
+                        df['balance'] = None
+                        if len(df) > 0:
+                            df.loc[df.index[-1], 'balance'] = ending_val
+                
                 # Pre-populate categories using saved rules database (learned overrides)
                 updated_categories = []
                 updated_suggested = []
@@ -847,8 +856,9 @@ if uploaded_files:
                             flag = "True"
                             reason += "Missing or zero amount; "
                             
-                        # Balance discrepancy check
-                        if idx > 0:
+                        # Balance discrepancy check (only for standard bank statements)
+                        is_cc = df_edited['is_credit_card'].any() if 'is_credit_card' in df_edited.columns else False
+                        if not is_cc and idx > 0:
                             prev_bal = running_bal_list[idx-1]
                             curr_bal = running_bal_list[idx]
                             curr_amt = amount_list[idx]

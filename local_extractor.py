@@ -316,6 +316,25 @@ def extract_digital_pdf(pdf_path, bank_name):
     start_year, start_month, end_year, end_month = extract_statement_period(raw_text)
     is_credit_card = "visa" in raw_text.lower() or "mastercard" in raw_text.lower() or "card" in raw_text.lower()
     
+    prev_bal = None
+    ending_bal = None
+    if is_credit_card:
+        txt_lower = raw_text.lower()
+        # Find previous balance
+        m_prev = re.search(r'previous\s+balance\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+        if m_prev:
+            try:
+                prev_bal = float(m_prev.group(1).replace(",", ""))
+            except ValueError:
+                pass
+        # Find ending balance
+        m_end = re.search(r'(?:total|new|ending|closing)\s+balance\s*(?:=|\s)\s*[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+        if m_end:
+            try:
+                ending_bal = float(m_end.group(1).replace(",", ""))
+            except ValueError:
+                pass
+    
     raw_rows = []
     
     # 2. Extract tables/lines using pdfplumber coordinates for column positions
@@ -485,8 +504,8 @@ def extract_digital_pdf(pdf_path, bank_name):
     prev_month_num = None
     
     # Store opening balance
-    opening_bal = 0.0
-    opening_found = False
+    opening_bal = prev_bal if (is_credit_card and prev_bal is not None) else 0.0
+    opening_found = True if (is_credit_card and prev_bal is not None) else False
     seen_closing_balance = False
     
     for r in raw_rows:
@@ -620,6 +639,8 @@ def extract_digital_pdf(pdf_path, bank_name):
             continue
         if tx["debit"] is None and tx["credit"] is None and tx["balance"] is None:
             continue
+        if is_credit_card and ending_bal is not None:
+            tx["statement_ending_balance"] = ending_bal
         final_txs.append(tx)
         
     return final_txs, opening_bal
@@ -636,12 +657,21 @@ def reconcile_transactions(transactions, opening_balance):
         total_debits += tx.get("debit") if tx.get("debit") else 0.0
         total_credits += tx.get("credit") if tx.get("credit") else 0.0
         
+    is_cc = any(tx.get("is_credit_card") for tx in transactions)
     # Calculate closing balance from transactions
-    calculated_closing = opening_balance - total_debits + total_credits
+    if is_cc:
+        calculated_closing = opening_balance - total_credits + total_debits
+    else:
+        calculated_closing = opening_balance - total_debits + total_credits
     
     # Actual closing balance from last transaction if available
     actual_closing = opening_balance
-    if transactions:
+    
+    # Try to find statement ending balance metadata first
+    stmt_ending = next((tx.get("statement_ending_balance") for tx in transactions if tx.get("statement_ending_balance") is not None), None)
+    if stmt_ending is not None:
+        actual_closing = stmt_ending
+    elif transactions:
         # Find the last transaction with a valid balance
         for tx in reversed(transactions):
             if tx.get("balance") is not None:
