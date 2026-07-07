@@ -81,9 +81,6 @@ CUSTOM_RULES = [
     (r"freedom mobile", "Telephone Expense", "9225", "12%"),
     (r"rogers", "Telephone Expense", "9225", "12%"),
     (r"telus", "Telephone Expense", "9225", "12%"),
-    (r"deposit", "Revenue / Deposits", "8000", "5%"),
-    (r"mobile cheque deposit", "Revenue / Deposits", "8000", "5%"),
-    (r"mobile deposit", "Revenue / Deposits", "8000", "5%"),
     # Page 4
     (r"uber canada", "Travel Expense", "9200", "5%"),
     (r"bill payment ford credit", "Truck Loan", "", "0%"),
