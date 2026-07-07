@@ -311,11 +311,14 @@ def extract_digital_pdf(pdf_path, bank_name):
                 for w in words:
                     w_text = w["text"].lower()
                     if w_text in ("date", "description"):
-                        header_top = w["top"]
+                        if header_top is None:
+                            header_top = w["top"]
                     if w_text == "description":
-                        desc_x0 = w["x0"]
+                        if desc_x0 is None:
+                            desc_x0 = w["x0"]
                     if w_text == "post":
-                        post_x0 = w["x0"]
+                        if post_x0 is None:
+                            post_x0 = w["x0"]
                 
                 # Check column X coordinates
                 debit_x_coords = []
