@@ -65,30 +65,53 @@ def detect_bank(pdf_path):
     
     return "Standard"
 
-def extract_statement_year_range(text):
+def extract_statement_period(text):
     """
-    Helper to search the text for statement period dates and extract the start and end years.
-    Returns (start_year, end_year) as integers, defaulting to current year if not found.
+    Extracts (start_year, start_month, end_year, end_month) from statement text.
+    Returns integers. Default to current year if not found.
     """
+    months_map = {
+        "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+        "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+    }
+    
     current_year = datetime.now().year
     
-    # Look for patterns like "From Jan 1, 2025 to Jan 31, 2026" or "Jan 1, 2025 - Jan 31, 2026"
-    # Or "Statement Period: Dec 15, 2024 to Jan 15, 2025"
+    # Try to find dates like "December 20, 2024 to January 19, 2025" or "Dec 20, 2024 - Jan 19, 2025"
+    pattern = r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},\s+(\d{4})\b'
+    matches = re.findall(pattern, text.lower())
+    
+    # Parse unique dates and sort them chronologically
+    parsed_dates = sorted(list(set((int(y), months_map[m]) for m, y in matches)))
+    if len(parsed_dates) >= 2:
+        y1, m1 = parsed_dates[0]
+        y2, m2 = parsed_dates[-1]
+        return y1, m1, y2, m2
+    elif len(parsed_dates) == 1:
+        y1, m1 = parsed_dates[0]
+        return y1, m1, y1, m1
+        
+    # Fallback to general years
     year_pattern = re.compile(r'\b(?:19|20)\d{2}\b')
     years = [int(y) for y in year_pattern.findall(text)]
-    
     if len(years) >= 2:
-        return years[0], years[1]
+        return years[0], 1, years[1], 12
     elif len(years) == 1:
-        return years[0], years[0]
+        return years[0], 1, years[0], 12
         
-    return current_year, current_year
+    return current_year, 1, current_year, 12
 
-def parse_date(date_str, start_year, end_year, prev_month_num=None):
+def extract_statement_year_range(text):
     """
-    Attempts to parse date strings like 'Jan 1', 'Jan 01', '01/02', '1/2'
-    Handles December-to-January year transition:
-    If prev_month is December (12) and current_month is January (1), year transitions to end_year.
+    Deprecated: Use extract_statement_period instead.
+    """
+    y1, m1, y2, m2 = extract_statement_period(text)
+    return y1, y2
+
+def parse_date(date_str, start_year, start_month, end_year, end_month):
+    """
+    Attempts to parse date strings like 'Jan 1', 'Jan 01', '01/02', '1/2'.
+    Uses mathematical transition logic based on statement period start/end months.
     """
     months_map = {
         "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
@@ -97,6 +120,16 @@ def parse_date(date_str, start_year, end_year, prev_month_num=None):
     
     clean_str = str(date_str).strip().lower().replace(",", "")
     
+    if clean_str.isdigit():
+        return None, None
+    
+    # Check if a 4-digit year is in the string
+    year_match = re.search(r'\b(20\d{2}|19\d{2})\b', clean_str)
+    year = None
+    if year_match:
+        year = int(year_match.group(1))
+        clean_str = re.sub(r'\b(20\d{2}|19\d{2})\b', '', clean_str).strip()
+        
     # Check for Month Day format (e.g., "Jan 15", "Dec 2")
     m = re.match(r'^([a-z]{3})\s+(\d{1,2})$', clean_str)
     if m:
@@ -104,34 +137,51 @@ def parse_date(date_str, start_year, end_year, prev_month_num=None):
         month_num = months_map.get(month_name, 1)
         day_num = int(day_val)
         
-        # Year Transition heuristic
-        year = start_year
-        if prev_month_num == 12 and month_num == 1:
-            year = end_year
-            
+        if year is None:
+            if start_month <= end_month:
+                year = start_year
+            else:
+                if month_num >= start_month:
+                    year = start_year
+                else:
+                    year = end_year
+                    
         return f"{year}-{month_num:02d}-{day_num:02d}", month_num
         
     # Check for numerical Slash format (e.g., "12/25", "12-25", "01/02")
     m = re.match(r'^(\d{1,2})[/\-](\d{1,2})$', clean_str)
     if m:
         val1, val2 = m.groups()
-        # Assume MM/DD or DD/MM based on value range
         num1, num2 = int(val1), int(val2)
         if num1 > 12: # must be DD/MM
             month_num, day_num = num2, num1
         else: # assume MM/DD
             month_num, day_num = num1, num2
             
-        year = start_year
-        if prev_month_num == 12 and month_num == 1:
-            year = end_year
-            
+        if year is None:
+            if start_month <= end_month:
+                year = start_year
+            else:
+                if month_num >= start_month:
+                    year = start_year
+                else:
+                    year = end_year
+                    
         return f"{year}-{month_num:02d}-{day_num:02d}", month_num
         
-    # Standard YYYY-MM-DD or MM/DD/YYYY
+    # Standard YYYY-MM-DD or MM/DD/YYYY fallback (respect statement year)
     try:
         dt = pd.to_datetime(clean_str)
-        return dt.strftime('%Y-%m-%d'), dt.month
+        month_num = dt.month
+        if year is None:
+            if start_month <= end_month:
+                year = start_year
+            else:
+                if month_num >= start_month:
+                    year = start_year
+                else:
+                    year = end_year
+        return f"{year}-{month_num:02d}-{dt.day:02d}", month_num
     except Exception:
         pass
         
@@ -171,6 +221,8 @@ def is_disclaimer_or_metadata(desc_text):
         
     patterns = [
         r'\bpage \d+',
+        r'^page\b',
+        r'\bpage of\b',
         r'continued on next page',
         r'trademark of',
         r'registered trademark',
@@ -201,7 +253,16 @@ def is_disclaimer_or_metadata(desc_text):
         r'transaction amount reflects',
         r'exchange rate displayed',
         r'converted amount',
-        r'converted to canadian'
+        r'converted to canadian',
+        r'information about your',
+        r'how we charge interest',
+        r'grace period',
+        r'installment plan',
+        r'convert an eligible',
+        r'payment period extensions',
+        r'minimum payment',
+        r'refer to the cibc',
+        r'denotes transaction in'
     ]
     for p in patterns:
         if re.search(p, txt):
@@ -230,8 +291,9 @@ def extract_digital_pdf(pdf_path, bank_name):
     except Exception:
         pass
         
-    # 1. Determine the start and end year context
-    start_year, end_year = extract_statement_year_range(raw_text)
+    # 1. Determine the statement period dates context
+    start_year, start_month, end_year, end_month = extract_statement_period(raw_text)
+    is_credit_card = "visa" in raw_text.lower() or "mastercard" in raw_text.lower() or "card" in raw_text.lower()
     
     raw_rows = []
     
@@ -244,11 +306,13 @@ def extract_digital_pdf(pdf_path, bank_name):
                 words = page.extract_words()
                 # Find vertical coordinates of column headers inside the actual Transaction table header row
                 header_top = None
+                post_x0 = None
                 for w in words:
                     w_text = w["text"].lower()
                     if w_text in ("date", "description"):
                         header_top = w["top"]
-                        break
+                    if w_text == "post":
+                        post_x0 = w["x0"]
                 
                 # Check column X coordinates
                 debit_x_coords = []
@@ -268,7 +332,11 @@ def extract_digital_pdf(pdf_path, bank_name):
                                 balance_x_coords.append((w["x0"], w["x1"]))
                 
                 # Default fallback X ranges based on bank layouts
-                if bank_name == "RBC":
+                if is_credit_card:
+                    deb_range = (999.0, 999.0)
+                    cred_range = (999.0, 999.0)
+                    bal_range = (500.0, 580.0)
+                elif bank_name == "RBC":
                     deb_range = (300.0, 410.0)
                     cred_range = (410.0, 510.0)
                     bal_range = (510.0, 600.0)
@@ -338,7 +406,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                         # Clean amounts helper
                         is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
                         
-                        if x_mid < 95.0 and looks_like_date_word(text_token): # Leftmost is date (e.g. 'Jan 01')
+                        date_limit = (post_x0 - 2.0) if (is_credit_card and post_x0 is not None) else (70.0 if is_credit_card else 95.0)
+                        if x_mid < date_limit and looks_like_date_word(text_token): # Leftmost is date (e.g. 'Jan 01')
                             date_tokens.append(text_token)
                         elif deb_range[0] <= x_mid < deb_range[1] and is_numeric:
                             debit_tokens.append(text_token)
@@ -459,10 +528,22 @@ def extract_digital_pdf(pdf_path, bank_name):
             if balance_raw: balance = float(balance_raw)
         except ValueError: pass
         
+        # If credit card statement, amount is in balance, determine debit/credit
+        if is_credit_card and balance is not None:
+            val_amt = balance
+            balance = None
+            desc_lower = desc.lower()
+            if "payment" in desc_lower or "thank you" in desc_lower or "paiment" in desc_lower or "refund" in desc_lower or "credit" in desc_lower or "rebate" in desc_lower or val_amt < 0:
+                credit = abs(val_amt)
+                debit = None
+            else:
+                debit = val_amt
+                credit = None
+        
         # Parse date
         date_parsed = None
         if date_raw:
-            date_parsed, month_num = parse_date(date_raw, start_year, end_year, prev_month_num)
+            date_parsed, month_num = parse_date(date_raw, start_year, start_month, end_year, end_month)
             if date_parsed:
                 prev_date = date_parsed
                 prev_month_num = month_num
@@ -473,8 +554,8 @@ def extract_digital_pdf(pdf_path, bank_name):
         if not date_parsed:
             date_parsed = prev_date
             
-        # Filter out statement summaries, page totals or metadata headers
-        if desc.lower() in ("total", "totals", "subtotal", "subtotals", "page total", "closing balance"):
+        desc_clean = desc.lower().strip()
+        if desc_clean.startswith("total") or desc_clean in ("subtotal", "subtotals", "page total", "closing balance"):
             continue
             
         if date_parsed or desc or debit is not None or credit is not None:
@@ -490,6 +571,8 @@ def extract_digital_pdf(pdf_path, bank_name):
     final_txs = []
     for tx in transactions:
         if not tx["date"] or not tx["description"]:
+            continue
+        if tx["debit"] is None and tx["credit"] is None and tx["balance"] is None:
             continue
         final_txs.append(tx)
         

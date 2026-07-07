@@ -30,13 +30,13 @@ class TestLocalExtractor(unittest.TestCase):
 
     def test_date_parsing_and_year_transition(self):
         """Test MM/DD parsing and December-to-January year transitions."""
-        # Normal parsing
-        parsed, month = local_extractor.parse_date("Jan 15", 2025, 2026)
+        # Normal parsing (within same year, e.g. Jan 1 to Dec 31 2025)
+        parsed, month = local_extractor.parse_date("Jan 15", 2025, 1, 2025, 12)
         self.assertEqual(parsed, "2025-01-15")
         self.assertEqual(month, 1)
 
-        # December-to-January transition
-        parsed, month = local_extractor.parse_date("Jan 05", 2025, 2026, prev_month_num=12)
+        # December-to-January spanning year transition (Dec 2025 to Jan 2026)
+        parsed, month = local_extractor.parse_date("Jan 05", 2025, 12, 2026, 1)
         self.assertEqual(parsed, "2026-01-05")
         self.assertEqual(month, 1)
 
