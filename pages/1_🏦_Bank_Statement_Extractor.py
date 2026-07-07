@@ -120,8 +120,8 @@ force_ocr = st.sidebar.checkbox(
 
 sort_chronologically = st.sidebar.checkbox(
     "Sort Output Chronologically",
-    value=True,
-    help="Sort transactions from oldest to newest. Uncheck this to keep the exact page/row order from the PDF statement."
+    value=False,
+    help="Sort transactions from oldest to newest. Uncheck this to keep the native statement order (Payments first, then Interest, then Charges)."
 )
 
 from datetime import datetime, date
@@ -300,7 +300,38 @@ if uploaded_files:
                 if sort_chronologically:
                     df = df.sort_values(by='date').reset_index(drop=True)
                 else:
-                    df = df.reset_index(drop=True)
+                    is_cc = (df['is_credit_card'].any() if 'is_credit_card' in df.columns else False) or df['description'].str.lower().str.contains("payment thank you|paiement merci").any()
+                    if is_cc:
+                        # Group by Statement Sections (Payments -> Interest -> Charges)
+                        payments = []
+                        interest = []
+                        charges = []
+                        for _, row in df.iterrows():
+                            desc = str(row.get('description', '')).lower()
+                            cred = pd.to_numeric(row.get('credit'), errors='coerce')
+                            is_payment = (pd.notna(cred) and cred > 0) or "payment thank you" in desc or "paiement merci" in desc
+                            is_interest = "interest" in desc or "purchases 20.99%" in desc or "regular purchases" in desc
+                            
+                            if is_payment:
+                                payments.append(row)
+                            elif is_interest:
+                                interest.append(row)
+                            else:
+                                charges.append(row)
+                                
+                        payments_df = pd.DataFrame(payments)
+                        if not payments_df.empty:
+                            payments_df = payments_df.sort_values(by='date', kind='mergesort')
+                        interest_df = pd.DataFrame(interest)
+                        if not interest_df.empty:
+                            interest_df = interest_df.sort_values(by='date', kind='mergesort')
+                        charges_df = pd.DataFrame(charges)
+                        if not charges_df.empty:
+                            charges_df = charges_df.sort_values(by='date', kind='mergesort')
+                            
+                        df = pd.concat([payments_df, interest_df, charges_df], ignore_index=True)
+                    else:
+                        df = df.reset_index(drop=True)
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                 
                 # Pre-populate categories using saved rules database (learned overrides)
@@ -362,7 +393,38 @@ if uploaded_files:
                     if sort_chronologically:
                         df = df.sort_values(by='date').reset_index(drop=True)
                     else:
-                        df = df.reset_index(drop=True)
+                        is_cc = (df['is_credit_card'].any() if 'is_credit_card' in df.columns else False) or df['description'].str.lower().str.contains("payment thank you|paiement merci").any()
+                        if is_cc:
+                            # Group by Statement Sections (Payments -> Interest -> Charges)
+                            payments = []
+                            interest = []
+                            charges = []
+                            for _, row in df.iterrows():
+                                desc = str(row.get('description', '')).lower()
+                                cred = pd.to_numeric(row.get('credit'), errors='coerce')
+                                is_payment = (pd.notna(cred) and cred > 0) or "payment thank you" in desc or "paiement merci" in desc
+                                is_interest = "interest" in desc or "purchases 20.99%" in desc or "regular purchases" in desc
+                                
+                                if is_payment:
+                                                                    payments.append(row)
+                                elif is_interest:
+                                                                    interest.append(row)
+                                else:
+                                                                    charges.append(row)
+                                    
+                            payments_df = pd.DataFrame(payments)
+                            if not payments_df.empty:
+                                                            payments_df = payments_df.sort_values(by='date', kind='mergesort')
+                            interest_df = pd.DataFrame(interest)
+                            if not interest_df.empty:
+                                                            interest_df = interest_df.sort_values(by='date', kind='mergesort')
+                            charges_df = pd.DataFrame(charges)
+                            if not charges_df.empty:
+                                                            charges_df = charges_df.sort_values(by='date', kind='mergesort')
+                                
+                            df = pd.concat([payments_df, interest_df, charges_df], ignore_index=True)
+                        else:
+                            df = df.reset_index(drop=True)
                     df['date'] = df['date'].dt.strftime('%Y-%m-%d')
                     
                     # Ensure all columns exist and are ordered

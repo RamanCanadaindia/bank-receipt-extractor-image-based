@@ -430,11 +430,13 @@ def extract_digital_pdf(pdf_path, bank_name):
                         date_limit = (post_x0 - 2.0) if (is_credit_card and post_x0 is not None) else (70.0 if is_credit_card else 95.0)
                         desc_limit = (desc_x0 - 5.0) if (is_credit_card and desc_x0 is not None) else (110.0 if is_credit_card else 95.0)
                         
+                        if is_credit_card and x_mid < date_limit:
+                            continue
+                            
                         if x_mid < date_limit and looks_like_date_word(text_token): # Leftmost is date (e.g. 'Jan 01')
                             date_tokens.append(text_token)
-                        elif is_credit_card and date_limit <= x_mid < desc_limit:
-                            # Discard posting date column on credit card statements
-                            continue
+                        elif is_credit_card and date_limit <= x_mid < desc_limit and looks_like_date_word(text_token):
+                            date_tokens.append(text_token)
                         elif deb_range[0] <= x_mid < deb_range[1] and is_numeric:
                             debit_tokens.append(text_token)
                         elif cred_range[0] <= x_mid < cred_range[1] and is_numeric:
