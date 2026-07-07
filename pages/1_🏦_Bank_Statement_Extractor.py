@@ -481,7 +481,7 @@ if uploaded_files:
                             "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
                             "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Rent",
                             "Repairs and maintenance", "Salaries and wages", "Subcontract Expense",
-                            "Telephone Expense", "Trade Sales", "Travel Expense", "Truck Loan", "Vehicle Asset",
+                            "Telephone Expense", "Travel Expense", "Truck Loan", "Vehicle Asset",
                             "Vehicle Expense", "Equipment rental/lease", "Dumping Charges", "Utilities",
                             "Other Expenses", "Revenue / Deposits", "Uncategorized"
                         ],
@@ -927,7 +927,7 @@ if uploaded_files:
                             "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
                             "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Rent",
                             "Repairs and maintenance", "Salaries and wages", "Subcontract Expense",
-                            "Telephone Expense", "Trade Sales", "Travel Expense", "Truck Loan", "Vehicle Asset",
+                            "Telephone Expense", "Travel Expense", "Truck Loan", "Vehicle Asset",
                             "Vehicle Expense", "Equipment rental/lease", "Dumping Charges", "Utilities",
                             "Other Expenses", "Revenue / Deposits", "Uncategorized"
                         ],
