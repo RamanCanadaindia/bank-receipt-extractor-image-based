@@ -277,7 +277,13 @@ def is_disclaimer_or_metadata(desc_text):
         r'\bpost\b',
         r'\bdescription\b',
         r'\bspend categories\b',
-        r'^your$'
+        r'^your$',
+        r'^interest$',
+        r'^payments$',
+        r'^charges$',
+        r'^credits$',
+        r'^period$',
+        r'this period'
     ]
     for p in patterns:
         if re.search(p, txt):
@@ -412,6 +418,11 @@ def extract_digital_pdf(pdf_path, bank_name):
                         continue
                     line_words = sorted(lines_dict[top_val], key=lambda x: x["x0"])
                     
+                    # Skip total and summary lines early before coordinate filtering
+                    line_txt = " ".join([w["text"] for w in line_words]).lower()
+                    if "total for" in line_txt or "total interest" in line_txt or "total payments" in line_txt or line_txt.startswith("total ") or line_txt == "total":
+                        continue
+                    
                     # Group words into tokens based on X coordinates
                     # Check X coordinates of numeric tokens
                     date_tokens = []
@@ -423,6 +434,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                     for w in line_words:
                         x_mid = (w["x0"] + w["x1"]) / 2.0
                         text_token = w["text"]
+                        
+                        if text_token.strip() == "Q":
+                            continue
                         
                         # Clean amounts helper
                         is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
