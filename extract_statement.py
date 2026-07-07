@@ -223,16 +223,16 @@ def call_gemini_api(api_key, model, base64_image, page_num):
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     
-    prompt = """Extract all transactions from the bank statement image. 
+    prompt = """Extract all transactions from the bank statement image (including all payments, credits, interest charges, fees, and standard purchases/withdrawals). 
 Return a JSON object with a single key 'transactions', which is a list of objects. Each transaction object MUST contain:
 - 'date': The transaction date in 'YYYY-MM-DD' format. Look at the statement year context (e.g., 'June 2025' or 'July 2025' header) to determine the correct year, and map dates like 'Jun 30' to '2025-06-30'.
-- 'description': The exact description text (e.g., 'TD MORTGAGE', 'MOBILE DEPOSIT').
-- 'debit': The debit amount as a float (or null if not present).
-- 'credit': The credit amount as a float (or null if not present).
-- 'balance': The balance amount as a float.
+- 'description': The exact description text (e.g., 'TD MORTGAGE', 'MOBILE DEPOSIT', 'PAYMENT THANK YOU').
+- 'debit': The debit amount as a float (or null if not present). For credit card statements, purchases/charges are debits.
+- 'credit': The credit amount as a float (or null if not present). For credit card statements, payments/refunds/credits are credits.
+- 'balance': The balance amount as a float (or null if not present).
 
 Do not include any currency symbols or commas in the numeric fields.
-Make sure you extract EVERY single transaction row in the table."""
+Make sure you extract EVERY single transaction row across all sections (including the 'payments and credits' section and the 'new charges' section)."""
 
     payload = {
         "contents": [
@@ -317,16 +317,16 @@ def call_gemini_api_for_text(api_key, model, full_text):
     """
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
     
-    prompt = f"""Extract all transaction rows from the following bank statement text.
+    prompt = f"""Extract all transaction rows from the following bank statement text (including all payments, credits, fees, interest, and purchases/withdrawals across all sections like 'Your payments' and 'Your new charges').
 Return a JSON object with a single key 'transactions', which is a list of objects. Each transaction object MUST contain:
 - 'date': The transaction date in 'YYYY-MM-DD' format. Look at the statement year context (e.g. '2026') in the text to determine the correct year.
-- 'description': The exact description text (e.g. 'PREAUTHORIZED DEBIT', 'E-TRANSFER').
-- 'debit': The debit amount as a float (or null if not present).
-- 'credit': The credit amount as a float (or null if not present).
-- 'balance': The balance amount as a float.
+- 'description': The exact description text (e.g. 'PREAUTHORIZED DEBIT', 'PAYMENT THANK YOU').
+- 'debit': The debit amount as a float (or null if not present). For credit card statements, purchases/charges are debits.
+- 'credit': The credit amount as a float (or null if not present). For credit card statements, payments/refunds/credits are credits.
+- 'balance': The balance amount as a float (or null if not present).
 
 Do not include any currency symbols or commas in the numeric fields.
-Make sure you extract EVERY single transaction row in the table.
+Make sure you extract EVERY single transaction row across all tables (including the 'Your payments' section).
 
 Bank Statement Text:
 {full_text}"""
