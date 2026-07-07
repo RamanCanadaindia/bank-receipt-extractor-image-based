@@ -941,52 +941,29 @@ if uploaded_files:
                 key="rules_editor_key"
             )
             
-            # Option to save edits or clear rules
-            col_del1, col_del2 = st.columns([3, 1])
-            with col_del1:
-                save_edits = st.button("💾 Save Changes to Rules Database", key="save_rules_edits_btn")
-                if save_edits:
-                    new_rules = {}
-                    for _, row in df_edited_rules.iterrows():
-                        desc = str(row.get("Merchant Description", "")).strip()
-                        cat = str(row.get("Saved Category", "")).strip()
-                        gifi = str(row.get("GIFI Code", "")).strip()
-                        gst = str(row.get("GST Rate", "")).strip()
-                        if desc and cat:
-                            new_rules[desc] = {
-                                "category": cat,
-                                "gifi_code": gifi,
-                                "gst_rate": gst
-                            }
-                    user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
-                    try:
-                        with open(user_rules_path, "w", encoding="utf-8") as f:
-                            json.dump(new_rules, f, indent=4, ensure_ascii=False)
-                        st.success("🎉 Rules database updated successfully!")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to save changes: {e}")
-            with col_del2:
-                if st.session_state.get("confirm_clear_all", False):
-                    st.warning("⚠️ Delete ALL rules?")
-                    confirm_yes = st.button("🔥 Yes, Clear All", key="confirm_clear_yes")
-                    if confirm_yes:
-                        user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
-                        if os.path.exists(user_rules_path):
-                            os.remove(user_rules_path)
-                        st.session_state.confirm_clear_all = False
-                        st.success("All saved rules cleared! Refreshing...")
-                        st.rerun()
-                        
-                    confirm_no = st.button("❌ Cancel", key="confirm_clear_no")
-                    if confirm_no:
-                        st.session_state.confirm_clear_all = False
-                        st.rerun()
-                else:
-                    clear_all = st.button("🗑️ Clear All Saved Rules", key="clear_all_rules_btn_bank")
-                    if clear_all:
-                        st.session_state.confirm_clear_all = True
-                        st.rerun()
+            # Option to save edits
+            save_edits = st.button("💾 Save Changes to Rules Database", key="save_rules_edits_btn")
+            if save_edits:
+                new_rules = {}
+                for _, row in df_edited_rules.iterrows():
+                    desc = str(row.get("Merchant Description", "")).strip()
+                    cat = str(row.get("Saved Category", "")).strip()
+                    gifi = str(row.get("GIFI Code", "")).strip()
+                    gst = str(row.get("GST Rate", "")).strip()
+                    if desc and cat:
+                        new_rules[desc] = {
+                            "category": cat,
+                            "gifi_code": gifi,
+                            "gst_rate": gst
+                        }
+                user_rules_path = os.path.join(os.path.dirname(os.path.abspath(categorizer.__file__)), "user_rules.json")
+                try:
+                    with open(user_rules_path, "w", encoding="utf-8") as f:
+                        json.dump(new_rules, f, indent=4, ensure_ascii=False)
+                    st.success("🎉 Rules database updated successfully!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to save changes: {e}")
                         
             # File Uploader to import custom rules directly to database
             st.markdown("---")
