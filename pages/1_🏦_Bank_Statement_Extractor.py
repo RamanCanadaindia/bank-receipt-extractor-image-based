@@ -743,13 +743,15 @@ if uploaded_files:
                     # 4. Running Balance
                     upload_df['running_balance'] = pd.to_numeric(df_edited['balance'], errors='coerce').fillna(0)
                     
+                    # 5. Category (pre-populate user edits first)
+                    upload_df['category'] = df_edited['category']
+                    
                     # Remaining columns (order does not matter)
                     upload_df['client_name'] = [client_name] * len(df_edited)
                     upload_df['account_name'] = [account_name] * len(df_edited)
                     upload_df['statement_start'] = [statement_start.isoformat()] * len(df_edited)
                     upload_df['statement_end'] = [statement_end.isoformat()] * len(df_edited)
                     upload_df['debit_credit_flag'] = ['debit' if pd.notna(d) and d != "" else 'credit' for d in df_edited['debit']]
-                    upload_df['category'] = df_edited['category']
                     upload_df['subcategory'] = ""
                     
                     # Apply Category Map for remaining empty categories
