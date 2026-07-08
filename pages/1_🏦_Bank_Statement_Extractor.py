@@ -217,11 +217,23 @@ if uploaded_files:
                     reconciliation["file_name"] = u_file.name
                     reconciliation["bank_name"] = detected_bank
                     local_reconciliation_results.append(reconciliation)
+                    
+                    st.session_state.opening_balance = opening_bal
+                    st.session_state.closing_balance = reconciliation["closing_balance"]
                 else:
                     st.warning(f"⚠️ {u_file.name} appears to be a scanned statement. Local engine requires digital PDFs. Switch to Gemini AI Engine in the sidebar to process scanned statements.")
                     continue
             else:
                 if is_digital:
+                    # Auto-detect credit card balances from text for cloud engine fallback metrics
+                    txt_lower = ("\n".join(text_pages)).lower()
+                    m_prev = re.search(r'previous\s+balance\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+                    if m_prev:
+                        st.session_state.opening_balance = float(m_prev.group(1).replace(",", ""))
+                    m_end = re.search(r'(?:total|new|ending|closing)\s+balance\s*(?:=|\s)\s*[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+                    if m_end:
+                        st.session_state.closing_balance = float(m_end.group(1).replace(",", ""))
+                        
                     with st.spinner(f"Extracting digital text from {u_file.name}..."):
                         transactions = extract_statement.parse_digital_text(text_pages)
                         if not transactions and api_key:
@@ -465,27 +477,33 @@ if uploaded_files:
         # Metrics Calculation
         total_debits = pd.to_numeric(df['debit'], errors='coerce').fillna(0).sum()
         total_credits = pd.to_numeric(df['credit'], errors='coerce').fillna(0).sum()
-        # Ensure we read opening balance from local reconciliation if available
-        first_op = None
-        if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
-            first_op = st.session_state.local_reconciliation_results[0]["opening_balance"]
-            
-        if first_op is not None:
-            opening_bal = first_op
-        else:
-            # Fallback calculation
-            raw_bal = pd.to_numeric(df.iloc[0]['balance'], errors='coerce')
-            raw_deb = pd.to_numeric(df.iloc[0]['debit'], errors='coerce')
-            raw_cred = pd.to_numeric(df.iloc[0]['credit'], errors='coerce')
-            
-            val_bal = float(raw_bal) if pd.notna(raw_bal) else 0.0
-            val_deb = float(raw_deb) if pd.notna(raw_deb) else 0.0
-            val_cred = float(raw_cred) if pd.notna(raw_cred) else 0.0
-            
-            opening_bal = val_bal + val_deb - val_cred if (pd.notna(raw_deb) or pd.notna(raw_cred)) else val_bal
-            
-        closing_bal = pd.to_numeric(df.iloc[-1]['balance'], errors='coerce')
-        closing_bal = float(closing_bal) if pd.notna(closing_bal) else 0.0
+        # Prioritize session state values for opening and closing balance
+        opening_bal = st.session_state.get("opening_balance", None)
+        closing_bal = st.session_state.get("closing_balance", None)
+        
+        if opening_bal is None:
+            # Ensure we read opening balance from local reconciliation if available
+            first_op = None
+            if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
+                first_op = st.session_state.local_reconciliation_results[0]["opening_balance"]
+                
+            if first_op is not None:
+                opening_bal = first_op
+            else:
+                # Fallback calculation
+                raw_bal = pd.to_numeric(df.iloc[0]['balance'], errors='coerce')
+                raw_deb = pd.to_numeric(df.iloc[0]['debit'], errors='coerce')
+                raw_cred = pd.to_numeric(df.iloc[0]['credit'], errors='coerce')
+                
+                val_bal = float(raw_bal) if pd.notna(raw_bal) else 0.0
+                val_deb = float(raw_deb) if pd.notna(raw_deb) else 0.0
+                val_cred = float(raw_cred) if pd.notna(raw_cred) else 0.0
+                
+                opening_bal = val_bal + val_deb - val_cred if (pd.notna(raw_deb) or pd.notna(raw_cred)) else val_bal
+                
+        if closing_bal is None:
+            closing_bal = pd.to_numeric(df.iloc[-1]['balance'], errors='coerce')
+            closing_bal = float(closing_bal) if pd.notna(closing_bal) else 0.0
         net_flow = total_credits - total_debits
         
         # Layout metric cards
