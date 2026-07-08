@@ -568,11 +568,11 @@ if uploaded_files:
                         options=[
                             "Accounting Fees", "Advertising Expense", "Bank Charges", "Business taxes",
                             "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
-                            "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Rent",
-                            "Repairs and maintenance", "Salaries and wages", "Subcontract Expense",
-                            "Telephone Expense", "Travel Expense", "Truck Loan", "Vehicle Asset",
-                            "Vehicle Expense", "Equipment rental/lease", "Dumping Charges", "Utilities",
-                            "Other Expenses", "Revenue / Deposits", "Uncategorized"
+                            "Dumping Charges", "Equipment rental/lease", "Groceries", "Grocery",
+                            "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Other Expenses",
+                            "Rent", "Repairs and maintenance", "Revenue / Deposits", "Salaries and wages",
+                            "Subcontract Expense", "Telephone Expense", "Travel Expense", "Truck Loan",
+                            "Uncategorized", "Utilities", "Vehicle Asset", "Vehicle Expense"
                         ],
                         required=True,
                     ),
