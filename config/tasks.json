@@ -1,0 +1,38 @@
+{
+  "active_task": "flight_search",
+  "tasks": {
+    "google_search": {
+      "keyword": "accounting firms Surrey BC",
+      "max_results": 20
+    },
+    "website_scraper": {
+      "urls": [
+        "https://example.com"
+      ]
+    },
+    "competitor_research": {
+      "keyword": "bookkeeping tax services Surrey BC",
+      "max_results": 20,
+      "extract": [
+        "business_name",
+        "website",
+        "services",
+        "phone",
+        "email",
+        "pricing_keywords"
+      ]
+    },
+    "custom_url_task": {
+      "url": "https://example.com",
+      "question": "Summarize this page and extract useful business information"
+    },
+    "flight_search": {
+      "origin": "DEL",
+      "destination": "YVR",
+      "trip_type": "One-Way",
+      "date": "2026-07-25",
+      "return_date": "",
+      "max_results": 5
+    }
+  }
+}

@@ -340,6 +340,7 @@ if uploaded_files:
                 else:
                     is_cc = (df['is_credit_card'].any() if 'is_credit_card' in df.columns else False) or df['description'].str.lower().str.contains("payment thank you|paiement merci").any()
                     if is_cc:
+                        df['_original_order'] = range(len(df))
                         # Group by Statement Sections (Payments -> Interest -> Charges)
                         payments = []
                         interest = []
@@ -359,15 +360,16 @@ if uploaded_files:
                                 
                         payments_df = pd.DataFrame(payments)
                         if not payments_df.empty:
-                            payments_df = payments_df.sort_values(by='date', kind='mergesort')
+                            payments_df = payments_df.sort_values(by='_original_order')
                         interest_df = pd.DataFrame(interest)
                         if not interest_df.empty:
-                            interest_df = interest_df.sort_values(by='date', kind='mergesort')
+                            interest_df = interest_df.sort_values(by='_original_order')
                         charges_df = pd.DataFrame(charges)
                         if not charges_df.empty:
-                            charges_df = charges_df.sort_values(by='date', kind='mergesort')
+                            charges_df = charges_df.sort_values(by='_original_order')
                             
                         df = pd.concat([payments_df, interest_df, charges_df], ignore_index=True)
+                        df = df.drop(columns=['_original_order'])
                     else:
                         df = df.reset_index(drop=True)
                 df['date'] = df['date'].dt.strftime('%Y-%m-%d')
