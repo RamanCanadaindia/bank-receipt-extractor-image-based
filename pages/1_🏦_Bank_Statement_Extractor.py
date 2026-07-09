@@ -143,6 +143,32 @@ dest_sheet_override = st.sidebar.selectbox(
 )
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("### ✏️ Custom Rules (Mobile-Friendly)")
+with st.sidebar.expander("Add Merchant Rule Manually", expanded=False):
+    with st.form("custom_rule_form", clear_on_submit=True):
+        keyword = st.text_input("Merchant Keyword", help="e.g. WALMART or A&W (case-insensitive)").strip()
+        rule_category = st.selectbox(
+            "Category",
+            options=[
+                "Accounting Fees", "Advertising Expense", "Bank Charges", "Business taxes",
+                "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
+                "Dumping Charges", "Equipment rental/lease", "Groceries",
+                "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Other Expenses",
+                "Rent", "Repairs and maintenance", "Revenue / Deposits", "Salaries and wages",
+                "Subcontract Expense", "Telephone Expense", "Travel Expense", "Truck Loan",
+                "Uncategorized", "Utilities", "Vehicle Asset", "Vehicle Expense"
+            ]
+        )
+        submit_rule = st.form_submit_button("➕ Save Rule")
+        if submit_rule:
+            if not keyword:
+                st.error("Please enter a keyword.")
+            else:
+                import categorizer
+                categorizer.save_user_rule(keyword, rule_category, "", "0%")
+                st.success(f"Saved: '{keyword}' -> {rule_category}!")
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("### How it works:")
 st.sidebar.info("""
 1. **Upload** your statement PDF(s).
