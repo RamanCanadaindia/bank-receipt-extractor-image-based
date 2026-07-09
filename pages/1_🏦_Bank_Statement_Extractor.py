@@ -582,6 +582,32 @@ if uploaded_files:
                     
         with tab2:
             st.subheader("Extracted Transaction History")
+            
+            # Quick custom rule form for mobile (so they don't have to open sidebar)
+            with st.expander("✏️ Add Merchant Category Rule Manually (Mobile-Friendly)", expanded=False):
+                with st.form("custom_rule_form_main", clear_on_submit=True):
+                    keyword = st.text_input("Merchant Keyword", help="e.g. WALMART or A&W (case-insensitive)").strip()
+                    rule_category = st.selectbox(
+                        "Category",
+                        options=[
+                            "Accounting Fees", "Advertising Expense", "Bank Charges", "Business taxes",
+                            "CC Payment", "CRA Payment", "Due to individual shareholder", "Due to Related Party",
+                            "Dumping Charges", "Equipment rental/lease", "Groceries",
+                            "Insurance expense", "Meal", "Office Expense", "Office Supplies", "Other Expenses",
+                            "Rent", "Repairs and maintenance", "Revenue / Deposits", "Salaries and wages",
+                            "Subcontract Expense", "Telephone Expense", "Travel Expense", "Truck Loan",
+                            "Uncategorized", "Utilities", "Vehicle Asset", "Vehicle Expense"
+                        ]
+                    )
+                    submit_rule = st.form_submit_button("➕ Save Rule")
+                    if submit_rule:
+                        if not keyword:
+                            st.error("Please enter a keyword.")
+                        else:
+                            import categorizer
+                            categorizer.save_user_rule(keyword, rule_category, "", "0%")
+                            st.success(f"Saved: '{keyword}' -> {rule_category}! Please refresh the page or re-run to apply.")
+            
             st.markdown("*Double-click a category cell to edit/reassign categories directly!*")
             
             df_edited = st.data_editor(
