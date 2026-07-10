@@ -246,6 +246,59 @@ if uploaded_files:
                     
                     st.session_state.opening_balance = opening_bal
                     st.session_state.closing_balance = reconciliation["closing_balance"]
+                    
+                    # 7. Add statement totals validation audit
+                    is_cc = any(t.get("is_credit_card") for t in transactions)
+                    if is_cc and detected_bank == "CIBC":
+                        u_file.seek(0)
+                        raw_pdf_text = ""
+                        reader_audit = pypdf.PdfReader(u_file)
+                        for page_aud in reader_audit.pages:
+                            t_aud = page_aud.extract_text()
+                            if t_aud: raw_pdf_text += t_aud
+                        txt_aud_lower = raw_pdf_text.lower()
+                        
+                        # Find statement summary totals
+                        stmt_pay_tot = None
+                        stmt_int_tot = None
+                        stmt_pur_tot = None
+                        
+                        m_pay = re.search(r'payments\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_aud_lower)
+                        if m_pay: stmt_pay_tot = float(m_pay.group(1).replace(",", ""))
+                        
+                        m_int = re.search(r'interest\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_aud_lower)
+                        if m_int: stmt_int_tot = float(m_int.group(1).replace(",", ""))
+                        
+                        m_pur = re.search(r'purchases\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_aud_lower)
+                        if m_pur: stmt_pur_tot = float(m_pur.group(1).replace(",", ""))
+                        
+                        # Calculate extracted totals
+                        ext_pay_tot = round(sum(t.get("credit", 0.0) or 0.0 for t in transactions if "payment" in t.get("description", "").lower() or "thank you" in t.get("description", "").lower() or "paiment" in t.get("description", "").lower()), 2)
+                        ext_int_tot = round(sum(t.get("debit", 0.0) or 0.0 for t in transactions if "interest" in t.get("description", "").lower() or "regular purchases" in t.get("description", "").lower()), 2)
+                        ext_pur_tot = round(sum(t.get("debit", 0.0) or 0.0 for t in transactions if not ("interest" in t.get("description", "").lower() or "regular purchases" in t.get("description", "").lower())), 2)
+                        
+                        # Validate statement values matching extracted values
+                        errors = []
+                        if stmt_pay_tot is not None and abs(ext_pay_tot - stmt_pay_tot) > 0.05:
+                            errors.append(f"Payments total mismatch: statement ${stmt_pay_tot:,.2f} vs extracted ${ext_pay_tot:,.2f}")
+                        if stmt_int_tot is not None and abs(ext_int_tot - stmt_int_tot) > 0.05:
+                            errors.append(f"Interest total mismatch: statement ${stmt_int_tot:,.2f} vs extracted ${ext_int_tot:,.2f}")
+                        if stmt_pur_tot is not None and abs(ext_pur_tot - stmt_pur_tot) > 0.05:
+                            errors.append(f"Purchases total mismatch: statement ${stmt_pur_tot:,.2f} vs extracted ${ext_pur_tot:,.2f}")
+                            
+                        # Extract expected number of purchase rows from spend report page (CIBC specific page 4)
+                        m_count = re.search(r'retail\s+and\s+grocery\s+(\d+)\s+[\d,]+\.\d{2}', txt_aud_lower)
+                        if m_count:
+                            expected_purchases_rows = int(m_count.group(1))
+                            actual_purchases_rows = len([t for t in transactions if not ("payment" in t.get("description", "").lower() or "thank you" in t.get("description", "").lower() or "interest" in t.get("description", "").lower() or "regular purchases" in t.get("description", "").lower())])
+                            if expected_purchases_rows != actual_purchases_rows:
+                                errors.append(f"Purchases rows count mismatch: spend report expects {expected_purchases_rows} rows vs extracted {actual_purchases_rows} rows")
+                                
+                        if errors:
+                            st.error(f"❌ **Statement Validation Audit failed for {u_file.name}**:\n" + "\n".join([f"- {e}" for e in errors]))
+                            st.stop()
+                        else:
+                            st.success(f"✅ **Statement Validation Audit passed for {u_file.name}**: All Payments (${ext_pay_tot:,.2f}), Interest (${ext_int_tot:,.2f}), and Purchases (${ext_pur_tot:,.2f}) match statement summary figures!")
                 else:
                     st.warning(f"⚠️ {u_file.name} appears to be a scanned statement. Local engine requires digital PDFs. Switch to Gemini AI Engine in the sidebar to process scanned statements.")
                     continue

@@ -432,14 +432,40 @@ def extract_digital_pdf(pdf_path, bank_name):
                         lines_dict[w["top"]] = [w]
                 
                 # Sort lines vertically from top to bottom
+                active_extraction = False
                 for top_val in sorted(lines_dict.keys()):
+                    line_words = sorted(lines_dict[top_val], key=lambda x: x["x0"])
+                    line_txt = " ".join([w["text"] for w in line_words]).strip()
+                    line_txt_lower = line_txt.lower()
+                    
+                    # 1. Detect start and end markers
+                    if is_credit_card:
+                        if "your payments" in line_txt_lower or "your new charges and credits" in line_txt_lower:
+                            active_extraction = True
+                            continue
+                        
+                        # Stop if footer or summary categories encountered
+                        if any(marker in line_txt_lower for marker in [
+                            "information about your cibc",
+                            "cibc creditsmart spend report",
+                            "your message centre",
+                            "go paperless",
+                            "total for 4500"
+                        ]):
+                            active_extraction = False
+                            continue
+                            
+                    else:
+                        active_extraction = True # Default to true for standard bank statements
+                        
+                    if not active_extraction:
+                        continue
+                        
                     if header_top is not None and top_val < (header_top - 2.0):
                         continue
-                    line_words = sorted(lines_dict[top_val], key=lambda x: x["x0"])
-                    
+                        
                     # Skip total and summary lines early before coordinate filtering
-                    line_txt = " ".join([w["text"] for w in line_words]).lower()
-                    if "total for" in line_txt or "total interest" in line_txt or "total payments" in line_txt or line_txt.startswith("total ") or line_txt == "total":
+                    if "total for" in line_txt_lower or "total interest" in line_txt_lower or "total payments" in line_txt_lower or line_txt_lower.startswith("total ") or line_txt_lower == "total":
                         continue
                     
                     # Group words into tokens based on X coordinates
@@ -483,6 +509,10 @@ def extract_digital_pdf(pdf_path, bank_name):
                     credit_str = "".join(credit_tokens).replace("$", "").replace(",", "").strip()
                     balance_str = "".join(balance_tokens).replace("$", "").replace(",", "").strip()
                     
+                    # Enforce cleaning of OCR description line-by-line
+                    if is_disclaimer_or_metadata(desc_str):
+                        continue
+                        
                     # Filter out empty spacer rows
                     if date_str or desc_str or debit_str or credit_str or balance_str:
                         raw_rows.append({
@@ -614,16 +644,34 @@ def extract_digital_pdf(pdf_path, bank_name):
         else:
             date_parsed = prev_date
             
-        # If date could not be parsed, skip or carry forward
-        if not date_parsed:
-            date_parsed = prev_date
-            
+        # Clean description whitespace and remove repeated spaces
+        desc_cleaned = re.sub(r'\s+', ' ', str(desc)).strip()
         
+        # Eliminate rows with OCR artifacts trailing or metadata fragments
+        if is_disclaimer_or_metadata(desc_cleaned):
+            continue
             
-        if date_parsed or desc or debit is not None or credit is not None:
+        # Remove trailing disclaimer lines that bleed into descriptions
+        disclaimer_phrases = [
+            "about your cibc", "aventura visa", "minimum payment", "pre-authorized payment",
+            "regular purchases", "cash advances", "interest rates", "annual rate",
+            "identifies points multiplier", "foreign currency", "convenience cheques",
+            "if you find an error", "how we charge", "grace period", "installment plan",
+            "payment options", "go paperless", "important notice", "message centre"
+        ]
+        for phrase in disclaimer_phrases:
+            if phrase in desc_cleaned.lower():
+                idx_phrase = desc_cleaned.lower().find(phrase)
+                desc_cleaned = desc_cleaned[:idx_phrase].strip()
+                
+        # Clean final trailing characters
+        desc_cleaned = re.sub(r'\s+', ' ', desc_cleaned).strip()
+        
+        # Strict validation: transaction must have date, description, and at least one amount
+        if date_parsed and desc_cleaned and (debit is not None or credit is not None or balance is not None):
             transactions.append({
                 "date": date_parsed,
-                "description": desc,
+                "description": desc_cleaned,
                 "debit": debit,
                 "credit": credit,
                 "balance": balance,
