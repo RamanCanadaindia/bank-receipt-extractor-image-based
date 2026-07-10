@@ -25,9 +25,12 @@ class RealEstateScraperTask(BaseTask):
         print(f"[RealEstateScraper] Navigating to: {url}")
         self.page.goto(url, wait_until="load")
         
-        # Wait for content to settle (Paragon pages often load inside frames or dynamically load detail grids)
-        time.sleep(5)
-
+        # Wait for detail frame element to load in parent page DOM to prevent race conditions
+        try:
+            self.page.wait_for_selector('frame[name="fraDetail"]', timeout=15000)
+        except Exception as e:
+            print(f"[RealEstateScraper] Frame element wait timed out: {e}")
+            
         # Extract content from detail frame 'fraDetail' if present, otherwise main body
         title = self.page.title()
         detail_frame = self.page.frame(name="fraDetail")
