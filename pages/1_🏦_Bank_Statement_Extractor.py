@@ -401,7 +401,7 @@ if uploaded_files:
                         for _, row in df.iterrows():
                             desc = str(row.get('description', '')).lower()
                             cred = pd.to_numeric(row.get('credit'), errors='coerce')
-                            is_payment = (pd.notna(cred) and cred > 0) or "payment thank you" in desc or "paiement merci" in desc
+                            is_payment = "payment" in desc or "thank you" in desc or "paiement" in desc or "merci" in desc
                             is_interest = "interest" in desc or "purchases 20.99%" in desc or "regular purchases" in desc
                             
                             if is_payment:
@@ -504,7 +504,7 @@ if uploaded_files:
                             for _, row in df.iterrows():
                                 desc = str(row.get('description', '')).lower()
                                 cred = pd.to_numeric(row.get('credit'), errors='coerce')
-                                is_payment = (pd.notna(cred) and cred > 0) or "payment thank you" in desc or "paiement merci" in desc
+                                is_payment = "payment" in desc or "thank you" in desc or "paiement" in desc or "merci" in desc
                                 is_interest = "interest" in desc or "purchases 20.99%" in desc or "regular purchases" in desc
                                 
                                 if is_payment:
