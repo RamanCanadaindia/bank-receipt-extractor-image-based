@@ -121,6 +121,7 @@ class RealEstateScraperTask(BaseTask):
             - strata_fee: Monthly maintenance/strata fee as a number (e.g. 350.00. Set 0 if no strata/maintenance fee is present)
             - property_tax: Annual property tax as a number (e.g. 2100.00. Set 0 if not listed)
             - year_built: Year the property was built (integer, e.g. 2018)
+            - property_type: The property type (e.g. "Townhouse", "Condo", "Detached House")
             - mls_number: The MLS number if listed (e.g. R2891321)
 
             Also, estimate the following research parameters based on your geography knowledge of Metro Vancouver (if the address is in British Columbia):
@@ -139,6 +140,7 @@ class RealEstateScraperTask(BaseTask):
                 "strata_fee": 350.00,
                 "property_tax": 2100.00,
                 "year_built": 2018,
+                "property_type": "Townhouse",
                 "mls_number": "...",
                 "skytrain_walk_minutes": 8,
                 "skytrain_station": "...",
@@ -168,6 +170,7 @@ class RealEstateScraperTask(BaseTask):
                         "Strata Fee": data.get("strata_fee", 0.0),
                         "Property Tax": data.get("property_tax", 0.0),
                         "Year Built": data.get("year_built", 0),
+                        "Property Type": data.get("property_type", "Condo"),
                         "MLS Number": data.get("mls_number", "N/A"),
                         "Transit Walk Min": data.get("skytrain_walk_minutes", 15),
                         "Nearest Station": data.get("skytrain_station", "Unknown Transit"),
@@ -237,6 +240,13 @@ class RealEstateScraperTask(BaseTask):
         # Year Built
         year_match = re.search(r'(?:Approx\.\s*Year\s*Built|Year\s*Built|Yr\s*Built)[\s:|]*(\d{4})', text, re.IGNORECASE)
         year_built = int(year_match.group(1)) if year_match else 2000
+        
+        # Property Type
+        prop_type = "Condo"
+        if "townhouse" in text.lower() or "row house" in text.lower():
+            prop_type = "Townhouse"
+        elif "detached" in text.lower() or "single family" in text.lower() or "house" in text.lower():
+            prop_type = "Detached House"
 
         return [{
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -248,6 +258,7 @@ class RealEstateScraperTask(BaseTask):
             "Strata Fee": strata_fee,
             "Property Tax": property_tax,
             "Year Built": year_built,
+            "Property Type": prop_type,
             "MLS Number": mls_num,
             "Transit Walk Min": 10,
             "Nearest Station": "Nearest Station Hub",

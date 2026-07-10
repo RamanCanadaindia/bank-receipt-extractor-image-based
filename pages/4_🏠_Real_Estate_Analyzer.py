@@ -189,6 +189,8 @@ with col_right:
                 "Sqft": p["Sqft"],
                 "Strata Fee": strata_fee,
                 "Property Tax": annual_tax,
+                "Year Built": int(p.get("Year Built", 2000)),
+                "Property Type": p.get("Property Type", "Condo"),
                 "Est Rent": est_rent,
                 "Mortgage": monthly_mortgage,
                 "Net Cash Flow": net_cash_flow,
@@ -210,7 +212,8 @@ with col_right:
                 
                 with col_c1:
                     st.markdown(f"### #{rank+1}: **{p['Address']}**")
-                    st.markdown(f"**MLS®**: {p['MLS Number']} | **Price**: ${p['Price']:,.0f} | **Layout**: {p['Beds']} Bed, {p['Baths']} Bath ({p['Sqft']} Sqft)")
+                    st.markdown(f"**MLS®**: {p['MLS Number']} | **Type**: {p['Property Type']} | **Built**: {p['Year Built']} | **Price**: ${p['Price']:,.0f}")
+                    st.markdown(f"**Layout**: {p['Beds']} Bed, {p['Baths']} Bath ({p['Sqft']} Sqft)")
                     
                     # Renders metric results
                     st.markdown(f"🚉 **Transit**: Near `{p['Nearest Station']}`. Transit Score: **{p['Transit Score']:.1f}/10**")
@@ -258,6 +261,8 @@ with col_right:
                                 rows_data.append({
                                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                     "Address": p["Address"],
+                                    "Property Type": p["Property Type"],
+                                    "Year Built": p["Year Built"],
                                     "Price": f"${p['Price']:,.2f}",
                                     "Bedrooms": p["Beds"],
                                     "Bathrooms": p["Baths"],
