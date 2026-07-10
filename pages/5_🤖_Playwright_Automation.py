@@ -381,8 +381,57 @@ def main():
                         st.warning("Fastest flight details unavailable.")
                 st.write("")
 
-            df = pd.DataFrame(results_list)
-            st.dataframe(df, use_container_width=True)
+            if selected_task == "flight_search":
+                # Build custom HTML table matching Comet design
+                html_rows = []
+                for r in results_list:
+                    rec = r.get("Recommendation", "")
+                    price_val = r.get("Price", "")
+                    
+                    price_label = f"<strong>{price_val}</strong>"
+                    if "Best Overall" in rec:
+                        price_label += " &nbsp;<span style='color:#0F9D58; font-weight: bold;'>✅ Best</span>"
+                    elif "Cheapest" in rec:
+                        price_label += " &nbsp;<span style='color:#0F9D58; font-weight: bold;'>✅ Cheapest</span>"
+                    elif "Fastest" in rec:
+                        price_label += " &nbsp;<span style='color:#F4B400; font-weight: bold;'>⚡ Fastest</span>"
+                    
+                    airline = r.get("Airline", "Unknown")
+                    dep_arr = f"{r.get('Departure', 'Unknown')} &rarr; {r.get('Arrival', 'Unknown')}"
+                    duration = r.get("Duration", "Unknown")
+                    stops = r.get("Stops", "Unknown")
+                    
+                    html_rows.append(f"""
+                    <tr>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; font-weight: bold;">{airline}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{dep_arr}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{duration}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{stops}</td>
+                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{price_label}</td>
+                    </tr>
+                    """)
+                    
+                table_html = f"""
+                <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;">
+                    <thead>
+                        <tr style="background-color: #f8f9fa; border-bottom: 2px solid #e0e0e0; text-align: left;">
+                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Airline</th>
+                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Departure &rarr; Arrival</th>
+                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Duration</th>
+                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Stops</th>
+                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Price (CAD)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {"".join(html_rows)}
+                    </tbody>
+                </table>
+                """
+                st.markdown(table_html, unsafe_allow_html=True)
+                st.write("")
+            else:
+                df = pd.DataFrame(results_list)
+                st.dataframe(df, use_container_width=True)
 
             # Export Excel direct link
             if os.path.exists(RESULTS_PATH):
