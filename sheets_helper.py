@@ -231,3 +231,46 @@ def log_processing_run(spreadsheet, summary_dict):
         wks.append_row(log_row, value_input_option="USER_ENTERED")
     except Exception as e:
         st.warning(f"⚠️ Failed to write to log sheet: {e}")
+
+def sync_property_listings(spreadsheet, df):
+    """
+    Syncs property listings to the 'Real Estate Listings' worksheet.
+    Removes duplicates based on Address or Link URL before appending.
+    """
+    if df.empty:
+        return True
+    try:
+        sheet_name = "Real Estate Listings"
+        try:
+            wks = spreadsheet.worksheet(sheet_name)
+            # Fetch all values to check for duplicates
+            existing_rows = wks.get_all_records()
+            existing_links = {str(row.get("Link", "")).strip() for row in existing_rows}
+            existing_addresses = {str(row.get("Address", "")).strip().lower() for row in existing_rows}
+        except gspread.exceptions.WorksheetNotFound:
+            # Create sheet if missing
+            wks = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols=str(len(df.columns)))
+            wks.append_row(list(df.columns))
+            existing_links = set()
+            existing_addresses = set()
+            
+        # Filter out rows that are already in sheet
+        rows_to_append = []
+        for _, row in df.iterrows():
+            addr = str(row.get("Address", "")).strip().lower()
+            link = str(row.get("Link", "")).strip()
+            if link in existing_links or (addr and addr in existing_addresses):
+                continue
+            # Convert all values to strings and fill NA
+            row_clean = row.fillna("").astype(str).tolist()
+            rows_to_append.append(row_clean)
+            
+        if rows_to_append:
+            wks.append_rows(rows_to_append, value_input_option="USER_ENTERED")
+            st.success(f"✅ Successfully synced {len(rows_to_append)} new listings to Google Sheet!")
+        else:
+            st.info("ℹ️ All listings are already synced to the Google Sheet (no duplicates added).")
+        return True
+    except Exception as e:
+        st.error(f"❌ Failed to sync property listings: {e}")
+        return False

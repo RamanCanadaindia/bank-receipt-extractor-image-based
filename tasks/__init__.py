@@ -4,6 +4,7 @@ from tasks.competitor_research import CompetitorResearchTask
 from tasks.custom_url_task import CustomUrlTask
 from tasks.flight_search import FlightSearchTask
 from tasks.multi_flight_tracker import MultiFlightTrackerTask
+from tasks.real_estate_scraper import RealEstateScraperTask
 
 TASK_MAPPING = {
     "google_search": GoogleSearchTask,
@@ -11,5 +12,6 @@ TASK_MAPPING = {
     "competitor_research": CompetitorResearchTask,
     "custom_url_task": CustomUrlTask,
     "flight_search": FlightSearchTask,
-    "multi_flight_tracker": MultiFlightTrackerTask
+    "multi_flight_tracker": MultiFlightTrackerTask,
+    "real_estate_scraper": RealEstateScraperTask
 }
