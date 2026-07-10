@@ -11,3 +11,4 @@ reportlab
 gspread
 google-auth
 playwright
+google-generativeai
