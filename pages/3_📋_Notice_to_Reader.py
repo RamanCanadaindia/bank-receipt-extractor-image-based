@@ -168,7 +168,9 @@ with col_left:
     config_card = st.container(border=True)
     with config_card:
         st.markdown("**Report Parameters**")
-        compiler_name = st.text_input("Accountant / Compiler Firm Name", value="")
+        include_preparer_details = st.checkbox("Include Business Number & Preparer Details", value=True)
+        default_compiler = "RAMAN TAX & ACCOUNTING INC." if include_preparer_details else ""
+        compiler_name = st.text_input("Accountant / Compiler Firm Name", value=default_compiler)
         compilation_date_str = st.text_input("Report Wording Date", value=datetime.today().strftime('%B %d, %Y'))
         
         # Defined statically to support backward-compatible PDF helper calls
@@ -455,6 +457,20 @@ with col_right:
     # Select Letter Wording dynamically from config
     report_title_header = "NOTICE TO READER"
     letter_body = report_config.NOTICE_TO_READER_TEXT
+    if include_preparer_details:
+        signature_block_html = f"""
+        Business Number: 793344540<br/><br/>
+        Prepared by:<br/>
+        <strong>RAMAN TAX & ACCOUNTING INC.</strong><br/>
+        Phone: 604-440-9885<br/>
+        Email: beedhtaxservices@outlook.com<br/>
+        Date: {compilation_date_str}
+        """
+    else:
+        signature_block_html = f"""
+        {f"<strong>{compiler_name}</strong><br/>" if compiler_name else ""}
+        {compilation_date_str}
+        """
     note_text = report_config.NOTE_1_TEXT
 
     # Render Preview Pages inside Container tabs
@@ -475,8 +491,7 @@ with col_right:
             <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 30px;">{report_title_header}</div>
             <div class="letter-text" style="white-space: pre-line;">{letter_body}</div>
             <div class="letter-text" style="margin-top: 50px;">
-                {f"<strong>{compiler_name}</strong><br/>" if compiler_name else ""}
-                {compilation_date_str}
+                {signature_block_html}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -755,8 +770,7 @@ with col_right:
         <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 40px;">{report_title_header}</div>
         <div class="letter-text" style="white-space: pre-line;">{letter_body}</div>
         <div class="letter-text" style="margin-top: 60px;">
-            {"<strong>" + compiler_name + "</strong><br/>" if compiler_name else ""}
-            {compilation_date_str}
+            {signature_block_html}
         </div>
     </div>
     
@@ -812,7 +826,8 @@ with col_right:
     import gifi_pdf_generator
     try:
         pdf_report_data = gifi_pdf_generator.generate_financial_pdf(
-            meta, classified, compiler_name, compilation_date_str, report_type, basis_of_accounting
+            meta, classified, compiler_name, compilation_date_str, report_type, basis_of_accounting,
+            include_preparer_details=include_preparer_details
         )
     except Exception as pdf_err:
         pdf_report_data = None

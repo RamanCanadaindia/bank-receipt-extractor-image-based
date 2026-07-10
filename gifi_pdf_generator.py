@@ -69,7 +69,7 @@ def add_page_decorations(canvas, doc):
         canvas.drawCentredString(letter[0] / 2.0, 50, "Unaudited - See Accompanying Notes")
     canvas.restoreState()
 
-def generate_financial_pdf(meta, classified, compiler_name, compilation_date, report_type, basis_of_accounting):
+def generate_financial_pdf(meta, classified, compiler_name, compilation_date, report_type, basis_of_accounting, include_preparer_details=False):
     """
     Generates a formal, printable PDF document using ReportLab.
     """
@@ -236,9 +236,17 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         story.append(Spacer(1, 10))
         
     story.append(Spacer(1, 30))
-    if compiler_name:
+    if include_preparer_details:
+        story.append(Paragraph("Business Number: 793344540", style_body))
+        story.append(Spacer(1, 10))
+        story.append(Paragraph("Prepared by:", style_body))
+        story.append(Paragraph("<strong>RAMAN TAX & ACCOUNTING INC.</strong>", style_body))
+        story.append(Paragraph("Phone: 604-440-9885", style_body))
+        story.append(Paragraph("Email: beedhtaxservices@outlook.com", style_body))
+        story.append(Paragraph(f"Date: {compilation_date}", style_body))
+    elif compiler_name:
         story.append(Paragraph(f"<strong>{compiler_name}</strong>", style_body))
-    story.append(Paragraph(compilation_date, style_body))
+        story.append(Paragraph(compilation_date, style_body))
     story.append(PageBreak())
     
     # ------------------ PAGE 3: BALANCE SHEET ------------------
