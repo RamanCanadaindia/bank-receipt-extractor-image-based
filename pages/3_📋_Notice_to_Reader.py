@@ -832,6 +832,7 @@ with col_right:
     except Exception as pdf_err:
         pdf_report_data = None
         st.error(f"Error compiling PDF: {pdf_err}")
+        st.exception(pdf_err)
 
     # Add HTML & PDF Download Actions
     st.markdown("---")
