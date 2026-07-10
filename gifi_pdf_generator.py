@@ -66,7 +66,12 @@ def add_page_decorations(canvas, doc):
         page_num_str = str(doc.page - 1)
         canvas.drawCentredString(letter[0] / 2.0, 36, page_num_str)
         # Small disclaimer at bottom
-        canvas.drawCentredString(letter[0] / 2.0, 50, "Unaudited - See Accompanying Notes")
+        report_type = getattr(doc, "report_type", "Notice to Reader")
+        if report_type == "Management-Prepared Financial Statements":
+            footer_text = "Unaudited - Management Prepared"
+        else:
+            footer_text = "Unaudited - See Accompanying Notes"
+        canvas.drawCentredString(letter[0] / 2.0, 50, footer_text)
     canvas.restoreState()
 
 def generate_financial_pdf(meta, classified, compiler_name, compilation_date, report_type, basis_of_accounting, include_preparer_details=False):
@@ -84,6 +89,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         topMargin=72,
         bottomMargin=72
     )
+    doc.report_type = report_type
     
     styles = getSampleStyleSheet()
     

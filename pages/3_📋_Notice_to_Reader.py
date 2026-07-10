@@ -173,8 +173,8 @@ with col_left:
         compiler_name = st.text_input("Accountant / Compiler Firm Name", value=default_compiler)
         compilation_date_str = st.text_input("Report Wording Date", value=datetime.today().strftime('%B %d, %Y'))
         
-        # Defined statically to support backward-compatible PDF helper calls
-        report_type = "Notice to Reader"
+        # Support choosing Report Type (Notice to Reader / Management-Prepared Financial Statements)
+        report_type = st.selectbox("Report Type / Header", ["Notice to Reader", "Management-Prepared Financial Statements", "CSRS 4200 Compilation Report"])
         basis_of_accounting = "Income Tax Basis"
 
     # 2. File Upload & Processing
@@ -456,7 +456,19 @@ with col_right:
 
     # Select Letter Wording dynamically from config
     report_title_header = "NOTICE TO READER"
-    letter_body = report_config.NOTICE_TO_READER_TEXT
+    if report_type == "Management-Prepared Financial Statements":
+        letter_body = (
+            "These financial statements have been prepared from information provided by management.\n\n"
+            "Management is responsible for the integrity and objectivity of the information used to prepare these financial statements."
+        )
+    else:
+        letter_body = report_config.NOTICE_TO_READER_TEXT
+
+    if report_type == "Management-Prepared Financial Statements":
+        disclaimer_label = "(Management Prepared - Unaudited)"
+    else:
+        disclaimer_label = "(Unaudited)"
+
     if include_preparer_details:
         signature_block_html = f"""
         Business Number: 793344540<br/><br/>
@@ -481,7 +493,7 @@ with col_right:
         <div class="page-preview">
             <div class="report-title">Financial Statements</div>
             <div class="company-name">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
+            <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>{disclaimer_label}</div>
         </div>
         """, unsafe_allow_html=True)
         
@@ -562,7 +574,7 @@ with col_right:
         st.markdown(f"""
         <div class="page-preview">
             <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px;">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Balance Sheet as at {tax_year_end_display}<br/>(Unaudited)</div>
+            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Balance Sheet as at {tax_year_end_display}<br/>{disclaimer_label}</div>
             <table class="report-table">
                 <thead>
                     <tr>
@@ -636,7 +648,7 @@ with col_right:
         st.markdown(f"""
         <div class="page-preview">
             <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px;">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
+            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement<br/>For the year ended {tax_year_end_display}<br/>{disclaimer_label}</div>
             <table class="report-table">
                 <thead>
                     <tr>
@@ -657,7 +669,7 @@ with col_right:
         st.markdown(f"""
         <div class="page-preview">
             <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 40px;">{meta.get('corporation_name', '[Company Name]')}</div>
-            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 40px;">Notes to Financial Statements<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
+            <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 40px;">Notes to Financial Statements<br/>For the year ended {tax_year_end_display}<br/>{disclaimer_label}</div>
             <div style="font-size: 14px; font-weight: bold; margin-top: 20px;">NOTE 1: BASIS OF ACCOUNTING</div>
             <div style="font-size: 14px; text-align: justify; margin-top: 10px;">{note_text}</div>
         </div>
@@ -762,7 +774,7 @@ with col_right:
     <div class="page">
         <div class="report-title">Financial Statements</div>
         <div class="company-name">{meta.get('corporation_name', 'Company')}</div>
-        <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>(Unaudited)</div>
+        <div class="date-title">For the year ended<br/><strong>{tax_year_end_display}</strong><br/>{disclaimer_label}</div>
     </div>
     
     <!-- Page 2: Letter -->
@@ -777,7 +789,7 @@ with col_right:
     <!-- Page 3: Balance Sheet -->
     <div class="page">
         <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px;">{meta.get('corporation_name', 'Company')}</div>
-        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Balance Sheet as at {tax_year_end_display}<br/>(Unaudited)</div>
+        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Balance Sheet as at {tax_year_end_display}<br/>{disclaimer_label}</div>
         <table class="report-table">
             <thead>
                 <tr>
@@ -796,7 +808,7 @@ with col_right:
     <!-- Page 4: Income Statement -->
     <div class="page">
         <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 5px;">{meta.get('corporation_name', 'Company')}</div>
-        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
+        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 20px;">Income Statement<br/>For the year ended {tax_year_end_display}<br/>{disclaimer_label}</div>
         <table class="report-table">
             <thead>
                 <tr>
@@ -815,7 +827,7 @@ with col_right:
     <!-- Page 5: Notes -->
     <div class="page">
         <div style="font-size: 16px; font-weight: bold; text-align: center; margin-bottom: 40px;">{meta.get('corporation_name', 'Company')}</div>
-        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 40px;">Notes to Financial Statements<br/>For the year ended {tax_year_end_display}<br/>(Unaudited)</div>
+        <div style="font-size: 14px; text-align: center; font-style: italic; margin-bottom: 40px;">Notes to Financial Statements<br/>For the year ended {tax_year_end_display}<br/>{disclaimer_label}</div>
         <div style="font-size: 14px; font-weight: bold; margin-top: 20px;">NOTE 1: BASIS OF ACCOUNTING</div>
         <div style="font-size: 14px; text-align: justify; margin-top: 10px;">{note_text}</div>
     </div>
