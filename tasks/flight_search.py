@@ -89,6 +89,27 @@ class FlightSearchTask(BaseTask):
         except Exception as e:
             print(f"[FlightSearch] Warning: Result elements load timeout. Proceeding with active page content. {e}")
 
+        # Try clicking the "Cheapest" tab to sort by price
+        try:
+            cheapest_tab = self.page.get_by_role("tab", name=re.compile("Cheapest", re.IGNORECASE)).first
+            if cheapest_tab.is_visible(timeout=2000):
+                print("[FlightSearch] Clicking 'Cheapest' tab to find the absolute cheapest flights...")
+                cheapest_tab.click()
+                self.page.wait_for_load_state("networkidle")
+                time.sleep(3)
+        except Exception as tab_err:
+            print(f"[FlightSearch] Could not click 'Cheapest' tab via role: {tab_err}")
+            # Fallback broad selector
+            try:
+                cheapest_elem = self.page.locator("span:has-text('Cheapest'), div:has-text('Cheapest'), button:has-text('Cheapest')").first
+                if cheapest_elem.is_visible(timeout=1000):
+                    print("[FlightSearch] Clicking 'Cheapest' element fallback...")
+                    cheapest_elem.click()
+                    self.page.wait_for_load_state("networkidle")
+                    time.sleep(3)
+            except Exception as fallback_err:
+                print(f"[FlightSearch] Fallback 'Cheapest' click failed: {fallback_err}")
+
         # Extract visible page text
         body_elem = self.page.locator("body")
         body_text = body_elem.text_content() if body_elem.is_visible() else ""
