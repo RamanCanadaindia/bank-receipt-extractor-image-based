@@ -120,7 +120,8 @@ def main():
         "website_scraper": "🌐 Website Scraper",
         "competitor_research": "🏢 Competitor Research site analyzer",
         "custom_url_task": "❓ Custom URL Q&A",
-        "flight_search": "✈️ Google Flights price finder"
+        "flight_search": "✈️ Google Flights price finder",
+        "multi_flight_tracker": "📊 Multi-Site Price Tracker (Skyscanner/Kayak/Google)"
     }
     
     # Inverse map
@@ -204,8 +205,8 @@ def main():
             help="The question that the local summarizer or Gemini AI will answer using the page text"
         )
         
-    elif selected_task == "flight_search":
-        fl_config = tasks_config.get("flight_search", {})
+    elif selected_task in ("flight_search", "multi_flight_tracker"):
+        fl_config = tasks_config.get(selected_task, {})
         col1, col2 = st.columns(2)
         
         with col1:
@@ -430,6 +431,72 @@ def main():
                 )
                 st.markdown(table_html, unsafe_allow_html=True)
                 st.write("")
+                
+            elif selected_task == "multi_flight_tracker":
+                # Build custom HTML comparison table
+                html_rows = []
+                # Find the cheapest price to highlight it
+                prices = []
+                for r in results_list:
+                    p_val = r.get("Price", "")
+                    try:
+                        numeric_p = float(re.sub(r'[^\d.]', '', p_val))
+                        prices.append(numeric_p)
+                    except:
+                        prices.append(float('inf'))
+                min_price = min(prices) if prices else float('inf')
+                
+                for idx, r in enumerate(results_list):
+                    source = r.get("Source", "Unknown")
+                    route = r.get("Route", "Unknown")
+                    f_date = r.get("Flight Date", "Unknown")
+                    airline = r.get("Airline", "Unknown")
+                    price_val = r.get("Price", "")
+                    status = r.get("Status", "Unknown")
+                    
+                    price_label = f"<strong>{price_val}</strong>"
+                    try:
+                        numeric_p = float(re.sub(r'[^\d.]', '', price_val))
+                        if numeric_p == min_price and min_price != float('inf'):
+                            price_label += " &nbsp;<span style='color:#0F9D58; font-weight: bold;'>🏆 Cheapest Deal</span>"
+                    except:
+                        pass
+                        
+                    status_style = "color: #0F9D58; font-weight: bold;" if "Success" in status else "color: #D93025; font-weight: bold;"
+                    status_label = f"<span style='{status_style}'>{status}</span>"
+                    
+                    row = (
+                        f"<tr>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0; font-weight: bold; color: #1a73e8;'>{source}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{route}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{f_date}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{price_label}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{airline}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{status_label}</td>"
+                        f"</tr>"
+                    )
+                    html_rows.append(row)
+                    
+                table_html = (
+                    f"<table style='width: 100%; border-collapse: collapse; font-family: \"Inter\", sans-serif; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;'>"
+                    f"<thead>"
+                    f"<tr style='background-color: #f8f9fa; border-bottom: 2px solid #e0e0e0; text-align: left;'>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Search Engine</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Route</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Departure Date</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Best Price Found</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Airline / Details</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Status</th>"
+                    f"</tr>"
+                    f"</thead>"
+                    f"<tbody>"
+                    f"{''.join(html_rows)}"
+                    f"</tbody>"
+                    f"</table>"
+                )
+                st.markdown(table_html, unsafe_allow_html=True)
+                st.write("")
+                
             else:
                 df = pd.DataFrame(results_list)
                 st.dataframe(df, use_container_width=True)
