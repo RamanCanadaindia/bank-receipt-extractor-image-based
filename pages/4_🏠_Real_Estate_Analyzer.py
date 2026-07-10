@@ -4,18 +4,39 @@ import time
 import os
 import re
 from datetime import datetime
+
+# Import modular investment engine components
+from utils.real_estate.models import PropertyListing, FinancialInputs, PropertyEvaluation
+from utils.real_estate.calculator import (
+    calculate_mortgage_details, calculate_cash_flow_details, 
+    calculate_appreciation_forecast, calculate_roi_details, calculate_scenarios
+)
+from utils.real_estate.scoring import (
+    evaluate_comparable_sales, evaluate_transit_score, 
+    evaluate_development_potential, evaluate_schools, 
+    evaluate_rental_demand, evaluate_property_condition, 
+    evaluate_risk_profile, calculate_norm_score
+)
+from utils.real_estate.recommender import generate_recommendation
+from utils.real_estate.maps import build_property_map
+from utils.real_estate.excel_export import export_evaluations_to_excel
+from utils.real_estate.pdf_report import generate_property_pdf
+
+# Streamlit-Folium integration
+from streamlit_folium import st_folium
+
 from tasks.real_estate_scraper import RealEstateScraperTask
 import sheets_helper
 import auth
 
 # Force Page Configurations
 st.set_page_config(
-    page_title="Paragon MLS Real Estate Analyzer",
+    page_title="Professional Real Estate Investment Engine",
     page_icon="🏠",
     layout="wide"
 )
 
-# Check password protection if enabled
+# Password Protection Check
 if not auth.check_password():
     st.stop()
 
@@ -23,88 +44,54 @@ if not auth.check_password():
 if "scraped_properties" not in st.session_state:
     st.session_state.scraped_properties = []
 
-def clean_numeric_price(price_str):
+def clean_numeric_price(price_str) -> float:
     try:
         cleaned = re.sub(r'[^\d.]', '', str(price_str))
         return float(cleaned) if cleaned else 0.0
     except:
         return 0.0
 
-def calculate_mortgage(principal, annual_rate, years):
-    if annual_rate <= 0 or principal <= 0 or years <= 0:
-        return 0.0
-    monthly_rate = (annual_rate / 100) / 12
-    months = years * 12
-    try:
-        mortgage = principal * (monthly_rate * (1 + monthly_rate)**months) / ((1 + monthly_rate)**months - 1)
-        return round(mortgage, 2)
-    except:
-        return 0.0
+st.title("💼 Real Estate Investment Decision Engine")
+st.write("Professional residential asset valuation dashboard for Metro Vancouver development and cash flow analysis.")
 
-st.title("🏠 Paragon MLS Real Estate Analyzer")
-st.write("Extract listing specifications from realtor links, evaluate investment viability, and sync to Google Sheets.")
-
-# Setup Two Columns layout for inputs and results
-col_left, col_right = st.columns([5, 7])
+# Setup layout columns
+col_left, col_right = st.columns([4, 8])
 
 with col_left:
-    st.subheader("🔍 Scraper Parameters")
+    st.subheader("⚙️ Analysis Parameters")
     
-    # URL Input
+    # Paragon Link Input
     listing_url = st.text_input(
         "Paragon MLS Link / GUID URL:",
         placeholder="https://bcres.paragonrels.com/paragonls/publink/view.mvc/?GUID=...",
-        help="Paste the public Paragon listing link emailed to you by your realtor."
+        help="Paste the Paragon public listing link from your realtor."
     )
     
-    # Financial parameters card
-    with st.container(border=True):
-        st.markdown("**Financial Assumptions**")
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            down_payment_pct = st.number_input("Down Payment %", min_value=5.0, max_value=100.0, value=20.0, step=5.0)
-            amortization_years = st.number_input("Amortization (Years)", min_value=5, max_value=30, value=25, step=5)
-        with col_f2:
-            interest_rate = st.number_input("Interest Rate %", min_value=1.0, max_value=15.0, value=4.8, step=0.1)
-            contingency_pct = st.slider("Contingency / Maintenance (% of Rent)", min_value=0.0, max_value=15.0, value=5.0, step=0.5)
-
-    # Ranking Weights card
-    with st.container(border=True):
-        st.markdown("**Importance Scoring Weights**")
-        st.write("Adjust weights to change the property composite rankings:")
-        weight_transit = st.slider("🚉 Proximity to Skytrain / Transit", 0, 100, 40)
-        weight_cash_flow = st.slider("💵 Monthly Net Cash Flow", 0, 100, 40)
-        weight_growth = st.slider("📈 Long-Term Capital Growth", 0, 100, 20)
-
-    col_btn1, col_btn2 = st.columns(2)
-    with col_btn1:
-        analyze_btn = st.button("⚡ Scrape & Analyze Listing", use_container_width=True, type="primary")
-    with col_btn2:
-        clear_btn = st.button("🧹 Clear Scraped Data", use_container_width=True)
-
+    # Scraper Action Buttons
+    col_sc1, col_sc2 = st.columns(2)
+    with col_sc1:
+        analyze_btn = st.button("⚡ Scrape Property", use_container_width=True, type="primary")
+    with col_sc2:
+        clear_btn = st.button("🧹 Clear All Data", use_container_width=True)
+        
     if clear_btn:
         st.session_state.scraped_properties = []
         st.rerun()
-
+        
     if analyze_btn:
         if not listing_url:
             st.error("Please enter a valid Paragon listing link.")
         else:
-            # Instantiate task settings
             settings = {"url": listing_url}
-            
-            with st.spinner("Accessing Paragon MLS and analyzing layout..."):
+            with st.spinner("Scraping listing and reconstructing coordinates..."):
                 try:
-                    # Run headed/headless depending on environment
                     import sys
                     is_headless_env = (sys.platform.startswith("linux") and not os.environ.get("DISPLAY"))
-                    
                     with RealEstateScraperTask(settings, headless=is_headless_env) as task:
                         res = task.execute()
-                        
                     if res:
                         item = res[0]
-                        # Verify we don't add duplicates
+                        # De-duplicate check
                         exists = False
                         for p in st.session_state.scraped_properties:
                             if p["Link"] == item["Link"] or p["Address"] == item["Address"]:
@@ -112,139 +99,422 @@ with col_left:
                                 break
                         if not exists:
                             st.session_state.scraped_properties.append(item)
-                            st.success(f"Successfully scraped: {item['Address']}")
+                            st.success(f"Added listing: {item['Address']}")
                         else:
-                            st.info("Listing already analyzed and present in your session.")
+                            st.info("Listing already analyzed in this session.")
                     else:
-                        st.error("Failed to parse listing page.")
+                        st.error("Failed to parse listing details.")
                 except Exception as e:
-                    st.error(f"Error executing scraper: {e}")
+                    st.error(f"Scraper Error: {e}")
 
-# Process and Render properties list in the right column
-with col_right:
-    st.subheader("🏆 Ranked Property Evaluation Dashboard")
-    
-    if not st.session_state.scraped_properties:
-        st.info("No properties analyzed yet. Paste a listing link in the left panel to begin!")
-    else:
-        # We calculate financial rankings dynamically based on assumptions
-        evaluated_properties = []
+    # Granular Financial Assumptions
+    with st.expander("💸 Detailed Financial Assumptions", expanded=True):
+        down_payment_pct = st.number_input("Down Payment %", min_value=5.0, max_value=100.0, value=20.0, step=5.0)
+        interest_rate = st.number_input("Interest Rate %", min_value=1.0, max_value=15.0, value=4.8, step=0.1)
+        amortization_years = st.number_input("Amortization (Years)", min_value=5, max_value=30, value=25, step=5)
         
-        for idx, p in enumerate(st.session_state.scraped_properties):
-            # Price
-            price_val = clean_numeric_price(p["Price"])
+        col_ass1, col_ass2 = st.columns(2)
+        with col_ass1:
+            mortgage_type = st.selectbox("Mortgage Type", ["Fixed", "Variable"])
+            frequency = st.selectbox("Payment Frequency", ["Monthly", "Semi-Monthly", "Bi-Weekly", "Weekly"])
+        with col_ass2:
+            vacancy_rate_pct = st.number_input("Vacancy Allowance %", min_value=0.0, max_value=20.0, value=3.0, step=0.5)
+            maintenance_pct = st.number_input("Maintenance Reserve %", min_value=0.0, max_value=20.0, value=5.0, step=0.5)
             
-            # Rent override check
-            key_rent = f"rent_override_{idx}"
-            default_rent = int(p.get("Est Rent", 2200))
-            est_rent = st.number_input(f"Monthly Rent for: {p['Address']}", min_value=500, max_value=15000, value=default_rent, step=100, key=key_rent)
-            
-            # Strata fee and property tax
-            strata_fee = float(p.get("Strata Fee", 0.0))
-            annual_tax = float(p.get("Property Tax", 0.0))
-            monthly_tax = annual_tax / 12
-            
-            # Mortgage calculations
-            principal = price_val * (1 - (down_payment_pct / 100))
-            monthly_mortgage = calculate_mortgage(principal, interest_rate, amortization_years)
-            
-            # Maintenance / contingency
-            monthly_contingency = est_rent * (contingency_pct / 100)
-            
-            # Net Cash Flow
-            net_cash_flow = est_rent - strata_fee - monthly_tax - monthly_mortgage - monthly_contingency
-            
-            # Score Sub-Components (1-10 Scale)
-            # 🚉 Transit Score: 10 mins walk = 0, 0 mins walk = 10
-            walk_min = p.get("Transit Walk Min", 15)
-            score_transit = max(1.0, 10.0 - (walk_min / 2.0))
-            
-            # 💵 Cash Flow Score: >= $500/mo = 10, <= -$500/mo = 1
-            if net_cash_flow >= 500:
-                score_cash_flow = 10.0
-            elif net_cash_flow <= -500:
-                score_cash_flow = 1.0
-            else:
-                score_cash_flow = 5.5 + (net_cash_flow / 100) # linear interpolation
-                
-            # 📈 Growth Score
-            score_growth = float(p.get("Growth Score", 6.0))
-            
-            # Composite Scoring math
-            total_weight = weight_transit + weight_cash_flow + weight_growth
-            if total_weight > 0:
-                composite_score = (
-                    (weight_transit * score_transit) + 
-                    (weight_cash_flow * score_cash_flow) + 
-                    (weight_growth * score_growth)
-                ) / total_weight
-            else:
-                composite_score = 5.0
-                
-            evaluated_properties.append({
-                "Address": p["Address"],
-                "Price": price_val,
-                "Beds": p["Bedrooms"],
-                "Baths": p["Bathrooms"],
-                "Sqft": p["Sqft"],
-                "Strata Fee": strata_fee,
-                "Property Tax": annual_tax,
-                "Year Built": int(p.get("Year Built", 2000)),
-                "Property Type": p.get("Property Type", "Condo"),
-                "Est Rent": est_rent,
-                "Mortgage": monthly_mortgage,
-                "Net Cash Flow": net_cash_flow,
-                "Transit Score": score_transit,
-                "Nearest Station": p.get("Nearest Station", "Unknown Station"),
-                "Growth Score": score_growth,
-                "Composite Score": round(composite_score, 2),
-                "MLS Number": p["MLS Number"],
-                "Link": p["Link"]
-            })
-            
-        # Sort by Composite Score descending
-        ranked_properties = sorted(evaluated_properties, key=lambda x: x["Composite Score"], reverse=True)
+        insurance_monthly = st.number_input("Monthly Insurance ($)", min_value=0.0, value=80.0, step=10.0)
+        prop_management_pct = st.number_input("Property Management %", min_value=0.0, max_value=25.0, value=6.0, step=0.5)
+        utilities_monthly = st.number_input("Utilities (Landlord Paid $)", min_value=0.0, value=0.0, step=50.0)
+        misc_monthly = st.number_input("Misc / Contingency ($/mo)", min_value=0.0, value=0.0, step=25.0)
+
+    # 10-Factor Scoring Weights
+    with st.expander("📊 10-Factor MCDA Weights", expanded=False):
+        st.write("Adjust weights (relative percentages dynamically normalize to 100%):")
+        w_app = st.slider("📈 Expected Appreciation", 0, 100, 25)
+        w_cf = st.slider("💵 Cash Flow", 0, 100, 20)
+        w_disc = st.slider("🏷️ Comparable Price Discount", 0, 100, 15)
+        w_dev = st.slider("🏗️ Development Potential", 0, 100, 10)
+        w_trans = st.slider("🚉 Transit Accessibility", 0, 100, 10)
+        w_dem = st.slider("👥 Rental Demand", 0, 100, 5)
+        w_sch = st.slider("🏫 School Quality", 0, 100, 5)
+        w_safe = st.slider("🛡️ Neighbourhood Safety", 0, 100, 5)
+        w_cond = st.slider("🛠️ Property Condition", 0, 100, 3)
+        w_risk = st.slider("⚠️ Investment Risk Safety", 0, 100, 2)
         
-        # Display each property card
-        for rank, p in enumerate(ranked_properties):
-            with st.container(border=True):
-                col_c1, col_c2 = st.columns([8, 4])
-                
-                with col_c1:
-                    st.markdown(f"### #{rank+1}: **{p['Address']}**")
-                    st.markdown(f"**MLS®**: {p['MLS Number']} | **Type**: {p['Property Type']} | **Built**: {p['Year Built']} | **Price**: ${p['Price']:,.0f}")
-                    st.markdown(f"**Layout**: {p['Beds']} Bed, {p['Baths']} Bath ({p['Sqft']} Sqft)")
-                    
-                    # Renders metric results
-                    st.markdown(f"🚉 **Transit**: Near `{p['Nearest Station']}`. Transit Score: **{p['Transit Score']:.1f}/10**")
-                    st.markdown(f"📈 **Long-Term Growth Score**: **{p['Growth Score']:.0f}/10**")
-                    
-                    # Cash flow details
-                    cf_color = "green" if p['Net Cash Flow'] >= 0 else "red"
-                    st.markdown(f"💵 **Net Cash Flow**: <span style='color:{cf_color}; font-weight:bold;'>${p['Net Cash Flow']:,.2f}/month</span>", unsafe_allow_html=True)
-                    st.write(f"(Rent: ${p['Est Rent']}/mo | Strata: ${p['Strata Fee']}/mo | Tax: ${p['Property Tax']/12:,.1f}/mo | Mortgage: ${p['Mortgage']}/mo)")
-                    
-                with col_c2:
-                    st.write("")
-                    st.metric("Overall Rank Score", f"{p['Composite Score']}/10")
-                    st.progress(p["Composite Score"] / 10.0)
-                    st.write("")
-                    st.markdown(f"[🔗 Open Listing Link]({p['Link']})")
-                    
-        # ------------------ GOOGLE SHEETS SYNC SECTION ------------------
-        st.write("---")
-        st.subheader("📊 Google Sheets Synchronization")
+        # Calculate dynamic normalized weights
+        w_sum = w_app + w_cf + w_disc + w_dev + w_trans + w_dem + w_sch + w_safe + w_cond + w_risk
+        if w_sum == 0:
+            w_sum = 10
+            w_app = w_cf = w_disc = w_dev = w_trans = w_dem = w_sch = w_safe = w_cond = w_risk = 1
+
+# Process evaluations if listings exist
+evaluations: List[PropertyEvaluation] = []
+if st.session_state.scraped_properties:
+    for idx, p in enumerate(st.session_state.scraped_properties):
+        price_val = clean_numeric_price(p.get("Price", 0.0))
         
-        # Default spreadsheet config
-        default_sheet_id = st.secrets.get("google_spreadsheet_id", "")
-        spreadsheet_input = st.text_input(
-            "Google Spreadsheet ID or Full URL Link:",
-            value=default_sheet_id,
-            placeholder="Paste your shared Google Spreadsheet URL link here...",
-            help="Your service account must have 'Editor' access to this Google sheet."
+        # Allow rent override via numeric input
+        default_rent = float(p.get("Est Rent", 2200))
+        est_rent = st.sidebar.number_input(
+            f"Rent Override: {p.get('Address', 'Listing')[:18]}...",
+            min_value=500.0, max_value=25000.0, value=default_rent, step=100.0,
+            key=f"rent_override_val_{idx}"
         )
         
-        sync_btn = st.button("📤 Sync Ranked Properties to Google Sheets", use_container_width=True, type="primary")
+        # Setup dataclass structures
+        listing_model = PropertyListing(
+            address=p.get("Address", "Unknown Address"),
+            price=price_val,
+            beds=int(p.get("Bedrooms", 1)),
+            baths=int(p.get("Bathrooms", 1)),
+            sqft=int(p.get("Sqft", 800)),
+            strata_fee=float(p.get("Strata Fee", 0.0)),
+            property_tax=float(p.get("Property Tax", 0.0)),
+            year_built=int(p.get("Year Built", 2000)),
+            property_type=p.get("Property Type", "Condo"),
+            mls_number=p.get("MLS Number", "N/A"),
+            link=p.get("Link", ""),
+            timestamp=p.get("Timestamp", "")
+        )
+        
+        financials_model = FinancialInputs(
+            down_payment_pct=down_payment_pct,
+            interest_rate=interest_rate,
+            amortization_years=amortization_years,
+            mortgage_type=mortgage_type,
+            payment_frequency=frequency,
+            insurance_monthly=insurance_monthly,
+            vacancy_rate_pct=vacancy_rate_pct,
+            maintenance_pct=maintenance_pct,
+            property_management_pct=prop_management_pct,
+            utilities_landlord_paid=utilities_monthly,
+            misc_expenses_monthly=misc_monthly,
+            est_rent=est_rent
+        )
+        
+        # 1. Mortgage Payment Calcs
+        principal_mortgage = price_val * (1 - (down_payment_pct / 100))
+        mort_res = calculate_mortgage_details(
+            principal_mortgage, interest_rate, amortization_years, 
+            frequency, mortgage_type == "Variable"
+        )
+        
+        # 2. Yield & Cash Flow Calcs
+        cf_res = calculate_cash_flow_details(listing_model, financials_model, mort_res.monthly_payment)
+        
+        # 3. Appreciation Forecast
+        app_res = calculate_appreciation_forecast(listing_model)
+        
+        # 4. ROI Metrics
+        roi_res = calculate_roi_details(listing_model, financials_model, mort_res, cf_res, app_res)
+        
+        # 5. Comparable Sales
+        comp_res = evaluate_comparable_sales(listing_model)
+        
+        # 6. Transit Accessibility
+        transit_res = evaluate_transit_score(listing_model)
+        
+        # 7. Development Potential
+        dev_res = evaluate_development_potential(listing_model, transit_res)
+        
+        # 8. Schools Catchment
+        school_res = evaluate_schools(listing_model)
+        
+        # 9. Rental Demand
+        demand_res = evaluate_rental_demand(listing_model)
+        
+        # 10. Property Condition
+        cond_res = evaluate_property_condition(listing_model)
+        
+        # 11. Risk Profile
+        risk_res = evaluate_risk_profile(listing_model, financials_model, cond_res)
+        
+        # 12. Scenarios compares (Optimistic / Base / Pessimistic)
+        scenario_res = calculate_scenarios(listing_model, financials_model)
+        
+        # 13. Sub-scores Normalization (1 to 10 scale)
+        # expected annual appreciation: range 3.0 to 8.0%
+        score_app = calculate_norm_score(app_res.expected_annual_appreciation_pct, 3.0, 8.0)
+        # cash on cash: range -2% to 6%
+        score_cf = calculate_norm_score(cf_res.cash_on_cash_pct, -2.0, 6.0)
+        # comparable discount: range -10% to 15%
+        score_disc = calculate_norm_score(comp_res.price_discount_pct, -10.0, 15.0)
+        
+        score_dev = dev_res.development_score
+        score_trans = transit_res.transit_score
+        score_dem = demand_res.rental_demand_score
+        score_sch = school_res.average_school_rating
+        
+        # safety (higher safety = better = lower crime)
+        from utils.real_estate.data_source import detect_municipality, MUNICIPALITIES_DATA
+        m_name = detect_municipality(listing_model.address)
+        score_safe = MUNICIPALITIES_DATA.get(m_name, {}).get("safety_score", 7.0)
+        
+        score_cond = cond_res.condition_score
+        score_risk = 10.0 - risk_res.risk_score # low risk = high score
+        
+        # Dynamic weighted score (normalizes to 100%)
+        weighted_val = (
+            (w_app * score_app) +
+            (w_cf * score_cf) +
+            (w_disc * score_disc) +
+            (w_dev * score_dev) +
+            (w_trans * score_trans) +
+            (w_dem * score_dem) +
+            (w_sch * score_sch) +
+            (w_safe * score_safe) +
+            (w_cond * score_cond) +
+            (w_risk * score_risk)
+        ) / w_sum
+        
+        composite_score = round(weighted_val * 10.0, 1) # Normalize to 100 scale
+        
+        eval_obj = PropertyEvaluation(
+            listing=listing_model,
+            financials=financials_model,
+            mortgage=mort_res,
+            cash_flow=cf_res,
+            appreciation=app_res,
+            comparables=comp_res,
+            development=dev_res,
+            transit=transit_res,
+            schools=school_res,
+            demand=demand_res,
+            condition=cond_res,
+            risk=risk_res,
+            roi=roi_res,
+            scenarios=scenario_res,
+            composite_score=composite_score
+        )
+        # Generate written brochure recommendations
+        eval_obj.ai_recommendation = generate_recommendation(eval_obj)
+        evaluations.append(eval_obj)
+
+    # Sort evaluations by score descending
+    evaluations.sort(key=lambda x: x.composite_score, reverse=True)
+    # Assign ranks
+    for r_idx, ev in enumerate(evaluations):
+        ev.overall_rank = r_idx + 1
+
+# Render Dashboard Right Column
+with col_right:
+    if not evaluations:
+        st.info("⚡ Real Estate Investment Decision Engine ready. Enter a listing URL in the parameters panel and click Scrape to analyze.")
+    else:
+        # Multi-tab layout for modular analysis
+        tab_dashboard, tab_cashflow, tab_comps, tab_compare = st.tabs([
+            "🏆 Investment Rankings",
+            "💵 Cash Flow & Scenarios",
+            "🗺️ Maps & Comparable Sales",
+            "👥 Side-by-Side Comparison"
+        ])
+        
+        # ------------------ TAB 1: RANKINGS DASHBOARD ------------------
+        with tab_dashboard:
+            st.subheader("📊 Property Performance Rankings")
+            
+            for ev in evaluations:
+                listing = ev.listing
+                cf = ev.cash_flow
+                roi = ev.roi
+                risk = ev.risk
+                
+                with st.container(border=True):
+                    col_det1, col_det2 = st.columns([9, 3])
+                    
+                    with col_det1:
+                        st.markdown(f"### #{ev.overall_rank}: **{listing.address}**")
+                        st.markdown(
+                            f"**MLS®**: `{listing.mls_number}` | **Type**: `{listing.property_type}` | "
+                            f"**Built**: `{listing.year_built}` (Age: {ev.condition.age_years} yrs) | **Price**: `${listing.price:,.0f}`"
+                        )
+                        st.markdown(f"📐 **Size**: {listing.sqft} sqft (${listing.price/listing.sqft:,.2f}/sqft) | **Layout**: {listing.beds} Bed, {listing.baths} Bath")
+                        
+                        # Yield Metrics Row
+                        col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                        col_m1.metric("Cap Rate", f"{cf.cap_rate}%")
+                        col_m2.metric("Cash-on-Cash Return", f"{cf.cash_on_cash_pct}%")
+                        col_m3.metric("5y IRR Projection", f"{roi.irr_5y:.1f}%")
+                        
+                        cf_color = "green" if cf.net_cash_flow_monthly >= 0 else "red"
+                        col_m4.markdown(
+                            f"Monthly Cash Flow:<br><span style='color:{cf_color}; font-size:18px; font-weight:bold;'>"
+                            f"${cf.net_cash_flow_monthly:,.2f}</span>", 
+                            unsafe_allow_html=True
+                        )
+                        
+                        # AI summary brochure card
+                        st.markdown(f"📝 **Investment Assessment:**")
+                        st.info(ev.ai_recommendation)
+                        
+                    with col_det2:
+                        st.write("")
+                        st.metric("Overall Investment Score", f"{ev.composite_score} / 100")
+                        st.progress(ev.composite_score / 100.0)
+                        
+                        st.write(f"⚠️ Risk Profile: **{risk.risk_level}**")
+                        st.write(f"🏗️ Development Score: **{ev.development.development_score}/10**")
+                        
+                        # Exporters Buttons
+                        pdf_data = generate_property_pdf(ev)
+                        st.download_button(
+                            label="📥 Download PDF Report",
+                            data=pdf_data,
+                            file_name=f"investment_report_{listing.mls_number}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True,
+                            key=f"dl_pdf_btn_{listing.mls_number}"
+                        )
+                        st.markdown(f"[🔗 Open Listing Link]({listing.link})")
+                        
+        # ------------------ TAB 2: CASH FLOW & SCENARIOS ------------------
+        with tab_cashflow:
+            st.subheader("💵 Cash Flow Statements & Scenario Models")
+            
+            for ev in evaluations:
+                listing = ev.listing
+                cf = ev.cash_flow
+                m = ev.mortgage
+                sc = ev.scenarios
+                
+                with st.expander(f"📊 Financials & Scenario Analysis: {listing.address}", expanded=True):
+                    # Side-by-side scenarios comparison table
+                    st.markdown("**Side-by-Side Stress-Test Projections (Base vs Optimistic vs Pessimistic)**")
+                    
+                    scenario_tbl = pd.DataFrame({
+                        "Metric": [
+                            "Monthly Rent", "Mortgage Payment", "Vacancy Allowance", 
+                            "Maintenance Reserve", "Strata Fees", "Property Taxes", 
+                            "Net Cash Flow (Monthly)", "Net Cash Flow (Annual)", 
+                            "Cap Rate (%)", "Cash-on-Cash Return (%)", "5-Year IRR (%)"
+                        ],
+                        "Pessimistic Scenario": [
+                            f"${sc.pessimistic.gross_rent:,.2f}", f"${sc.pessimistic.mortgage_payment:,.2f}", f"${sc.pessimistic.vacancy_allowance_monthly:,.2f}",
+                            f"${sc.pessimistic.maintenance_reserve_monthly:,.2f}", f"${sc.pessimistic.strata_fee_monthly:,.2f}", f"${sc.pessimistic.property_tax_monthly:,.2f}",
+                            f"${sc.pessimistic.net_cash_flow_monthly:,.2f}", f"${sc.pessimistic.net_cash_flow_annual:,.2f}",
+                            f"{sc.pessimistic.cap_rate}%", f"{sc.pessimistic.cash_on_cash_pct}%", f"{sc.pessimistic_roi.irr_5y:.1f}%"
+                        ],
+                        "Base Scenario": [
+                            f"${sc.base.gross_rent:,.2f}", f"${sc.base.mortgage_payment:,.2f}", f"${sc.base.vacancy_allowance_monthly:,.2f}",
+                            f"${sc.base.maintenance_reserve_monthly:,.2f}", f"${sc.base.strata_fee_monthly:,.2f}", f"${sc.base.property_tax_monthly:,.2f}",
+                            f"${sc.base.net_cash_flow_monthly:,.2f}", f"${sc.base.net_cash_flow_annual:,.2f}",
+                            f"{sc.base.cap_rate}%", f"{sc.base.cash_on_cash_pct}%", f"{sc.base_roi.irr_5y:.1f}%"
+                        ],
+                        "Optimistic Scenario": [
+                            f"${sc.optimistic.gross_rent:,.2f}", f"${sc.optimistic.mortgage_payment:,.2f}", f"${sc.optimistic.vacancy_allowance_monthly:,.2f}",
+                            f"${sc.optimistic.maintenance_reserve_monthly:,.2f}", f"${sc.optimistic.strata_fee_monthly:,.2f}", f"${sc.optimistic.property_tax_monthly:,.2f}",
+                            f"${sc.optimistic.net_cash_flow_monthly:,.2f}", f"${sc.optimistic.net_cash_flow_annual:,.2f}",
+                            f"{sc.optimistic.cap_rate}%", f"{sc.optimistic.cash_on_cash_pct}%", f"{sc.optimistic_roi.irr_5y:.1f}%"
+                        ]
+                    })
+                    st.table(scenario_tbl)
+                    
+                    # Mortgage specifics card
+                    st.markdown("**Mortgage Schedule Breakdown**")
+                    col_m1, col_m2, col_m3, col_m4 = st.columns(4)
+                    col_m1.metric("Monthly Payment", f"${m.monthly_payment:,.2f}")
+                    col_m2.metric("Year 1 Interest Paid", f"${m.interest_paid_y1:,.2f}")
+                    col_m3.metric("5-Year Balance Forecast", f"${m.remaining_balance_y5:,.2f}")
+                    col_m4.metric("10-Year Balance Forecast", f"${m.remaining_balance_y10:,.2f}")
+
+        # ------------------ TAB 3: LOCATION MAPS & COMPS ------------------
+        with tab_comps:
+            st.subheader("🗺️ Geographic Proximity & Market Valuation")
+            
+            for ev in evaluations:
+                listing = ev.listing
+                comps = ev.comparables
+                transit = ev.transit
+                
+                with st.expander(f"📍 Map & Comps Analysis: {listing.address}", expanded=True):
+                    # Map section
+                    st.markdown("**Interactive Location Map (Subject, Transit Hubs, Schools, & Comps)**")
+                    property_map = build_property_map(ev)
+                    st_folium(property_map, height=350, width=700, key=f"map_{listing.mls_number}")
+                    
+                    # Comparable properties table
+                    st.markdown("**Comparable Sales Dashboard**")
+                    comp_list = []
+                    for c_listing in comps.comparable_listings:
+                        comp_list.append({
+                            "Comparable Address": c_listing["address"],
+                            "Sold Price": f"${c_listing['price']:,.0f}",
+                            "Size (Sqft)": c_listing["sqft"],
+                            "Price/Sqft": f"${c_listing['price_per_sqft']:.2f}",
+                            "Distance (km)": f"{c_listing['distance_km']:.2f} km"
+                        })
+                    st.table(pd.DataFrame(comp_list))
+                    
+                    # Comps stats
+                    st.write(
+                        f"📊 Comparable Average: **${comps.average_comp_price:,.2f}** "
+                        f"(${comps.comp_price_per_sqft:.2f}/sqft). Discount: **{comps.price_discount_pct}%**."
+                    )
+                    
+                    # School catches card
+                    st.markdown("**School Catchment Quality Indicators**")
+                    st.write(
+                        f"🏫 **Elementary**: `{ev.schools.elementary_school}` (Fraser Score: **{ev.schools.elementary_rating}/10**). "
+                        f"🏫 **Secondary**: `{ev.schools.secondary_school}` (Fraser Score: **{ev.schools.secondary_rating}/10**)."
+                    )
+
+        # ------------------ TAB 4: PROPERTY COMPARISON GRID ------------------
+        with tab_compare:
+            st.subheader("👥 Comparative Property Matrix")
+            
+            # Select properties to compare
+            addresses = [ev.listing.address for ev in evaluations]
+            selected_addresses = st.multiselect("Select properties to compare:", addresses, default=addresses[:2])
+            
+            if len(selected_addresses) < 1:
+                st.info("Select at least one property to view the comparative matrix.")
+            else:
+                compare_data = []
+                for ev in evaluations:
+                    if ev.listing.address in selected_addresses:
+                        compare_data.append({
+                            "Rank": ev.overall_rank,
+                            "Address": ev.listing.address,
+                            "Score": f"{ev.composite_score}/100",
+                            "Price": f"${ev.listing.price:,.0f}",
+                            "Beds/Baths": f"{ev.listing.beds}B / {ev.listing.baths}B",
+                            "Monthly Cash Flow": f"${ev.cash_flow.net_cash_flow_monthly:,.2f}",
+                            "Cap Rate": f"{ev.cash_flow.cap_rate}%",
+                            "Cash-on-Cash": f"{ev.cash_flow.cash_on_cash_pct}%",
+                            "IRR (5y)": f"{ev.roi.irr_5y:.1f}%",
+                            "Risk Level": ev.risk.risk_level,
+                            "Transit Score": f"{ev.transit.transit_score}/10",
+                            "School Rating": f"{ev.schools.average_school_rating}/10",
+                            "Dev Score": f"{ev.development.development_score}/10"
+                        })
+                st.table(pd.DataFrame(compare_data))
+
+        # ------------------ SHEET SYNC & EXPORTS SECTION ------------------
+        st.write("---")
+        st.subheader("📊 Document Exporters & Synchronizations")
+        
+        col_exp1, col_exp2 = st.columns(2)
+        with col_exp1:
+            # Excel Multi-sheet download
+            excel_bytes = export_evaluations_to_excel(evaluations)
+            st.download_button(
+                label="📥 Download Multi-Tab Excel Workbook",
+                data=excel_bytes,
+                file_name="metro_vancouver_investment_matrix.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="dl_excel_btn"
+            )
+            
+        with col_exp2:
+            default_sheet_id = st.secrets.get("google_spreadsheet_id", "")
+            spreadsheet_input = st.text_input(
+                "Google Sheet Link / URL:",
+                value=default_sheet_id,
+                placeholder="Paste your shared Google Spreadsheet URL here...",
+                key="sheets_url_input"
+            )
+            
+        sync_btn = st.button("📤 Sync Evaluated Listings to Google Sheets", use_container_width=True, type="primary")
         
         if sync_btn:
             if not spreadsheet_input:
@@ -255,28 +525,37 @@ with col_right:
                     if client:
                         spreadsheet = sheets_helper.get_spreadsheet(client, spreadsheet_input)
                         if spreadsheet:
-                            # Build dataframe matching sheet schema
                             rows_data = []
-                            for p in ranked_properties:
+                            for ev in evaluations:
+                                listing = ev.listing
+                                cf = ev.cash_flow
+                                roi = ev.roi
+                                transit = ev.transit
+                                risk = ev.risk
+                                
                                 rows_data.append({
                                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                    "Address": p["Address"],
-                                    "Property Type": p["Property Type"],
-                                    "Year Built": p["Year Built"],
-                                    "Price": f"${p['Price']:,.2f}",
-                                    "Bedrooms": p["Beds"],
-                                    "Bathrooms": p["Baths"],
-                                    "Sqft": p["Sqft"],
-                                    "Strata Fee": f"${p['Strata Fee']:.2f}",
-                                    "Property Tax": f"${p['Property Tax']:.2f}",
-                                    "Est Rent": f"${p['Est Rent']:.2f}",
-                                    "Mortgage": f"${p['Mortgage']:.2f}",
-                                    "Net Cash Flow": f"${p['Net Cash Flow']:.2f}",
-                                    "Transit Score": f"{p['Transit Score']:.1f}/10",
-                                    "Growth Score": f"{p['Growth Score']:.0f}/10",
-                                    "Composite Rank": f"{p['Composite Score']}/10",
-                                    "MLS Number": p["MLS Number"],
-                                    "Link": p["Link"]
+                                    "Address": listing.address,
+                                    "Property Type": listing.property_type,
+                                    "Year Built": listing.year_built,
+                                    "Price": f"${listing.price:,.2f}",
+                                    "Bedrooms": listing.beds,
+                                    "Bathrooms": listing.baths,
+                                    "Sqft": listing.sqft,
+                                    "Strata Fee": f"${listing.strata_fee:.2f}",
+                                    "Property Tax": f"${listing.property_tax:.2f}",
+                                    "Est Rent": f"${cf.gross_rent:.2f}",
+                                    "Mortgage": f"${cf.mortgage_payment:.2f}",
+                                    "Net Cash Flow": f"${cf.net_cash_flow_monthly:.2f}",
+                                    "Cap Rate": f"{cf.cap_rate}%",
+                                    "Cash-on-Cash Return": f"{cf.cash_on_cash_pct}%",
+                                    "5y IRR": f"{roi.irr_5y:.1f}%",
+                                    "Transit Score": f"{transit.transit_score:.1f}/10",
+                                    "Schools Catchment": f"{ev.schools.average_school_rating:.1f}/10",
+                                    "Risk Score": f"{risk.risk_level}",
+                                    "Composite Rank Score": f"{ev.composite_score}/100",
+                                    "MLS Number": listing.mls_number,
+                                    "Link": listing.link
                                 })
                             
                             sync_df = pd.DataFrame(rows_data)

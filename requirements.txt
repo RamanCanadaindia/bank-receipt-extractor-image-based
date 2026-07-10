@@ -12,3 +12,5 @@ gspread
 google-auth
 playwright
 google-generativeai
+folium
+streamlit-folium
