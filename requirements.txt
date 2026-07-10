@@ -10,3 +10,4 @@ openpyxl
 reportlab
 gspread
 google-auth
+playwright

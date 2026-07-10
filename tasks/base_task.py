@@ -31,10 +31,27 @@ class BaseTask:
         """Launches the Playwright browser and sets up context/page."""
         print(f"[{self.task_name}] Starting Chromium browser (headless={self.headless})...")
         self.playwright = sync_playwright().start()
-        self.browser = self.playwright.chromium.launch(
-            headless=self.headless,
-            args=["--disable-blink-features=AutomationControlled"]  # Help avoid simple bot detection
-        )
+        try:
+            self.browser = self.playwright.chromium.launch(
+                headless=self.headless,
+                args=["--disable-blink-features=AutomationControlled"]  # Help avoid simple bot detection
+            )
+        except Exception as launch_err:
+            err_str = str(launch_err).lower()
+            if "executable" in err_str or "not installed" in err_str or "find" in err_str or "playwright install" in err_str:
+                print(f"[{self.task_name}] Playwright chromium not found. Installing chromium browser binaries...")
+                import subprocess
+                try:
+                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+                    self.browser = self.playwright.chromium.launch(
+                        headless=self.headless,
+                        args=["--disable-blink-features=AutomationControlled"]
+                    )
+                except Exception as install_err:
+                    print(f"[{self.task_name}] Failed to automatically install playwright chromium: {install_err}")
+                    raise launch_err
+            else:
+                raise launch_err
         # Set a realistic user agent and viewport size
         self.context = self.browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
