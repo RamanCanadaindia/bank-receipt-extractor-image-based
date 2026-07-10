@@ -28,11 +28,22 @@ class RealEstateScraperTask(BaseTask):
         # Wait for content to settle (Paragon pages often load inside frames or dynamically load detail grids)
         time.sleep(5)
 
-        # Extract title and entire visible text
+        # Extract content from detail frame 'fraDetail' if present, otherwise main body
         title = self.page.title()
-        body_elem = self.page.locator("body")
-        body_text = body_elem.text_content() if body_elem.is_visible() else ""
-        
+        detail_frame = self.page.frame(name="fraDetail")
+        if detail_frame:
+            print("[RealEstateScraper] Accessing detail frame 'fraDetail' content...")
+            try:
+                detail_frame.wait_for_selector("body", timeout=12000)
+                body_text = detail_frame.locator("body").inner_text() or ""
+            except Exception as fe:
+                print(f"[RealEstateScraper] Frame wait timed out: {fe}. Fallback to html text.")
+                body_text = detail_frame.locator("html").inner_text() or ""
+        else:
+            print("[RealEstateScraper] Detail frame not found, extracting from main page body...")
+            body_elem = self.page.locator("body")
+            body_text = body_elem.inner_text() if body_elem.is_visible() else ""
+            
         # Clean text
         clean_text = " ".join(body_text.split())
 
@@ -126,40 +137,67 @@ class RealEstateScraperTask(BaseTask):
 
     def _local_heuristic_parse(self, text, url):
         # Fallback regexes
-        price_match = re.search(r'\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?', text)
-        price = price_match.group(0) if price_match else "Check Listing"
+        # Address
+        address_match = re.search(r'(\d+[\w\s]{2,50}?\b(?:STREET|ST|AVENUE|AVE|AV|ROAD|RD|DRIVE|DR|COURT|CRT|PLACE|PL|WAY|BOULEVARD|BLVD|CRESCENT|CRES)\b)', text, re.IGNORECASE)
+        address = address_match.group(1).strip() if address_match else "Scraped MLS Listing Address"
         
-        strata_match = re.search(r'(?:Strata Fee|Maintenance Fee|Maint\. Fee)\s*(?::|\$)?\s*(\d+(?:\.\d{2})?)', text, re.IGNORECASE)
-        strata_fee = float(strata_match.group(1)) if strata_match else 0.0
+        # Price (e.g. 699,000 or $699,000)
+        price_match = re.search(r'\$?(\d{3},\d{3})\b', text)
+        price = f"${price_match.group(1)}" if price_match else "Check Listing"
         
-        tax_match = re.search(r'(?:Property Tax|Taxes|Tax)\s*(?::|\$)?\s*(\d+(?:\.\d{2})?)', text, re.IGNORECASE)
-        property_tax = float(tax_match.group(1)) if tax_match else 0.0
-        
+        # Strata fee (e.g. Maint Fee: $521.54)
+        strata_match = re.search(r'(?:Maint Fee|Strata Fee|Maintenance Fee|Maint\. Fee)\s*(?::|\$)?\s*(\$?[\d,]+\.?\d*)', text, re.IGNORECASE)
+        strata_fee_str = strata_match.group(1) if strata_match else "0"
+        try:
+            strata_fee = float(re.sub(r'[^\d.]', '', strata_fee_str))
+        except:
+            strata_fee = 0.0
+            
+        # Property Tax (e.g. Gross Taxes: $2,887.55)
+        tax_match = re.search(r'(?:Gross Taxes|Property Tax|Taxes|Tax)\s*(?::|\$)?\s*(\$?[\d,]+\.?\d*)', text, re.IGNORECASE)
+        tax_str = tax_match.group(1) if tax_match else "0"
+        try:
+            property_tax = float(re.sub(r'[^\d.]', '', tax_str))
+        except:
+            property_tax = 0.0
+            
+        # MLS Number (e.g. R3134407)
         mls_match = re.search(r'\b[R|M|V]\d{7}\b', text)
         mls_num = mls_match.group(0) if mls_match else "N/A"
         
-        bed_match = re.search(r'(\d+)\s*(?:Bedrooms|Bed|Beds)', text, re.IGNORECASE)
+        # Beds and Baths
+        bed_match = re.search(r'(?:Bedrooms|Beds):\s*(\d+)', text, re.IGNORECASE)
         beds = int(bed_match.group(1)) if bed_match else 1
         
-        bath_match = re.search(r'(\d+)\s*(?:Bathrooms|Bath|Baths)', text, re.IGNORECASE)
+        bath_match = re.search(r'(?:Bathrooms|Baths):\s*(\d+)', text, re.IGNORECASE)
         baths = int(bath_match.group(1)) if bath_match else 1
         
-        sqft_match = re.search(r'(\d{3,4})\s*(?:Sqft|Sq\. Ft\.|Square Feet)', text, re.IGNORECASE)
-        sqft = int(sqft_match.group(1)) if sqft_match else 800
+        # Sqft (e.g. Sq. Footage: 1,411)
+        sqft_match = re.search(r'(?:Sq\.\s*Footage|Sqft|Sq\.\s*Ft\.|Square\s*Feet):\s*([\d,]+)', text, re.IGNORECASE)
+        if sqft_match:
+            try:
+                sqft = int(re.sub(r'[^\d]', '', sqft_match.group(1)))
+            except:
+                sqft = 800
+        else:
+            sqft = 800
+            
+        # Year Built
+        year_match = re.search(r'(?:Approx\.\s*Year\s*Built|Year\s*Built|Yr\s*Built):\s*(\d{4})', text, re.IGNORECASE)
+        year_built = int(year_match.group(1)) if year_match else 2000
 
-        # Create basic result row
         return [{
             "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Address": "Scraped MLS Listing Address",
+            "Address": address,
             "Price": price,
             "Bedrooms": beds,
             "Bathrooms": baths,
             "Sqft": sqft,
             "Strata Fee": strata_fee,
             "Property Tax": property_tax,
-            "Year Built": 2000,
+            "Year Built": year_built,
             "MLS Number": mls_num,
-            "Transit Walk Min": 15,
+            "Transit Walk Min": 10,
             "Nearest Station": "Nearest Station Hub",
             "Est Rent": 2200,
             "Growth Score": 6,
