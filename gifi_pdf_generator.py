@@ -493,8 +493,8 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     total_rev_cur = sum(x["current_year"] for x in classified["revenues"])
     total_rev_pri = sum(x["prior_year"] for x in classified["revenues"])
     
-    total_cogs_cur = sum(x["current_year"] for x in classified["cost_of_sales"])
-    total_cogs_pri = sum(x["prior_year"] for x in classified["cost_of_sales"])
+    total_cogs_cur = sum(-x["current_year"] if x["gifi_code"] == 8500 else x["current_year"] for x in classified["cost_of_sales"])
+    total_cogs_pri = sum(-x["prior_year"] if x["gifi_code"] == 8500 else x["prior_year"] for x in classified["cost_of_sales"])
     
     gross_profit_cur = total_rev_cur - total_cogs_cur
     gross_profit_pri = total_rev_pri - total_cogs_pri
