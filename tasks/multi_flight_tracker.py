@@ -89,7 +89,7 @@ class MultiFlightTrackerTask(BaseTask):
                 pass
 
             # Wait for results container
-            self.page.wait_for_selector("[role='listitem']", timeout=15000)
+            self.page.wait_for_selector("div.mxvQLc, .mxvQLc, [role='listitem']", timeout=15000)
             time.sleep(2)
 
             # Click Cheapest tab to sort
@@ -103,7 +103,7 @@ class MultiFlightTrackerTask(BaseTask):
                 pass
 
             # Extract first row text
-            first_row = self.page.locator("[role='listitem']").first
+            first_row = self.page.locator("div.mxvQLc, .mxvQLc, [role='listitem']").first
             card_text = first_row.text_content() or ""
             
             # Parse Price
