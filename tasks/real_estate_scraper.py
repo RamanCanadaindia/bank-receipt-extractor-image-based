@@ -34,14 +34,63 @@ class RealEstateScraperTask(BaseTask):
         # Extract content from detail frame 'fraDetail' if present, otherwise main body
         title = self.page.title()
         detail_frame = self.page.frame(name="fraDetail")
+        body_text = ""
+        
         if detail_frame:
-            print("[RealEstateScraper] Accessing detail frame 'fraDetail' content...")
+            print("[RealEstateScraper] Accessing detail frame 'fraDetail' with coordinate reconstruction...")
             try:
                 detail_frame.wait_for_selector("body", timeout=12000)
-                body_text = detail_frame.locator("body").inner_text() or ""
+                js_code = """
+                () => {
+                    const elements = Array.from(document.querySelectorAll('div, span, td, th, a'));
+                    const data = [];
+                    elements.forEach(el => {
+                        const text = Array.from(el.childNodes)
+                            .filter(n => n.nodeType === 3) // Node.TEXT_NODE
+                            .map(n => n.nodeValue.trim())
+                            .join(' ')
+                            .trim();
+                        if (text) {
+                            const rect = el.getBoundingClientRect();
+                            if (rect.width > 0 && rect.height > 0) {
+                                data.push({
+                                    text: text,
+                                    top: Math.round(rect.top),
+                                    left: Math.round(rect.left)
+                                });
+                            }
+                        }
+                    });
+
+                    // Sort by top, then left
+                    data.sort((a, b) => a.top - b.top || a.left - b.left);
+                    const lines = [];
+                    let currentLine = [];
+                    let currentTop = -100;
+                    data.forEach(item => {
+                        if (item.top - currentTop > 6) {
+                            if (currentLine.length > 0) {
+                                lines.push(currentLine.map(x => x.text).join('  |  '));
+                            }
+                            currentLine = [item];
+                            currentTop = item.top;
+                        } else {
+                            currentLine.push(item);
+                        }
+                    });
+                    if (currentLine.length > 0) {
+                        lines.push(currentLine.map(x => x.text).join('  |  '));
+                    }
+                    return lines.join('\\n');
+                }
+                """
+                body_text = detail_frame.evaluate(js_code) or ""
             except Exception as fe:
-                print(f"[RealEstateScraper] Frame wait timed out: {fe}. Fallback to html text.")
-                body_text = detail_frame.locator("html").inner_text() or ""
+                print(f"[RealEstateScraper] Coordinate JS execution timed out/failed: {fe}. Fallback to plain inner_text.")
+                try:
+                    body_text = detail_frame.locator("body").inner_text() or ""
+                except:
+                    body_text = ""
         else:
             print("[RealEstateScraper] Detail frame not found, extracting from main page body...")
             body_elem = self.page.locator("body")
@@ -148,16 +197,16 @@ class RealEstateScraperTask(BaseTask):
         price_match = re.search(r'\$?(\d{3},\d{3})\b', text)
         price = f"${price_match.group(1)}" if price_match else "Check Listing"
         
-        # Strata fee (e.g. Maint Fee: $521.54)
-        strata_match = re.search(r'(?:Maint Fee|Strata Fee|Maintenance Fee|Maint\. Fee)\s*(?::|\$)?\s*(\$?[\d,]+\.?\d*)', text, re.IGNORECASE)
+        # Strata fee (e.g. Maint Fee:  |  $521.54)
+        strata_match = re.search(r'(?:Maint Fee|Strata Fee|Maintenance Fee|Maint\. Fee)[\s:|]*(\$?[\d,]+\.?\d*)', text, re.IGNORECASE)
         strata_fee_str = strata_match.group(1) if strata_match else "0"
         try:
             strata_fee = float(re.sub(r'[^\d.]', '', strata_fee_str))
         except:
             strata_fee = 0.0
             
-        # Property Tax (e.g. Gross Taxes: $2,887.55)
-        tax_match = re.search(r'(?:Gross Taxes|Property Tax|Taxes|Tax)\s*(?::|\$)?\s*(\$?[\d,]+\.?\d*)', text, re.IGNORECASE)
+        # Property Tax (e.g. Gross Taxes:  |  $2,887.55)
+        tax_match = re.search(r'(?:Gross Taxes|Property Tax|Taxes|Tax)[\s:|]*(\$?[\d,]+\.?\d*)', text, re.IGNORECASE)
         tax_str = tax_match.group(1) if tax_match else "0"
         try:
             property_tax = float(re.sub(r'[^\d.]', '', tax_str))
@@ -169,14 +218,14 @@ class RealEstateScraperTask(BaseTask):
         mls_num = mls_match.group(0) if mls_match else "N/A"
         
         # Beds and Baths
-        bed_match = re.search(r'(?:Bedrooms|Beds):\s*(\d+)', text, re.IGNORECASE)
+        bed_match = re.search(r'(?:Bedrooms|Beds)[\s:|]*(\d+)', text, re.IGNORECASE)
         beds = int(bed_match.group(1)) if bed_match else 1
         
-        bath_match = re.search(r'(?:Bathrooms|Baths):\s*(\d+)', text, re.IGNORECASE)
+        bath_match = re.search(r'(?:Bathrooms|Baths)[\s:|]*(\d+)', text, re.IGNORECASE)
         baths = int(bath_match.group(1)) if bath_match else 1
         
-        # Sqft (e.g. Sq. Footage: 1,411)
-        sqft_match = re.search(r'(?:Sq\.\s*Footage|Sqft|Sq\.\s*Ft\.|Square\s*Feet):\s*([\d,]+)', text, re.IGNORECASE)
+        # Sqft (e.g. Finished Floor (Total):  |  1,411)
+        sqft_match = re.search(r'(?:Finished Floor \(Total\)|Finished Floor Total|Sqft|Square\s*Feet)[\s:|]*([\d,]+)', text, re.IGNORECASE)
         if sqft_match:
             try:
                 sqft = int(re.sub(r'[^\d]', '', sqft_match.group(1)))
@@ -186,7 +235,7 @@ class RealEstateScraperTask(BaseTask):
             sqft = 800
             
         # Year Built
-        year_match = re.search(r'(?:Approx\.\s*Year\s*Built|Year\s*Built|Yr\s*Built):\s*(\d{4})', text, re.IGNORECASE)
+        year_match = re.search(r'(?:Approx\.\s*Year\s*Built|Year\s*Built|Yr\s*Built)[\s:|]*(\d{4})', text, re.IGNORECASE)
         year_built = int(year_match.group(1)) if year_match else 2000
 
         return [{
