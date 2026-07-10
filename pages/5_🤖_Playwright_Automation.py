@@ -382,7 +382,7 @@ def main():
                 st.write("")
 
             if selected_task == "flight_search":
-                # Build custom HTML table matching Comet design
+                # Build custom HTML table matching Comet design (with no leading spaces to avoid markdown code-block parsing)
                 html_rows = []
                 for r in results_list:
                     rec = r.get("Recommendation", "")
@@ -401,32 +401,33 @@ def main():
                     duration = r.get("Duration", "Unknown")
                     stops = r.get("Stops", "Unknown")
                     
-                    html_rows.append(f"""
-                    <tr>
-                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0; font-weight: bold;">{airline}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{dep_arr}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{duration}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{stops}</td>
-                        <td style="padding: 12px; border-bottom: 1px solid #e0e0e0;">{price_label}</td>
-                    </tr>
-                    """)
+                    row = (
+                        f"<tr>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0; font-weight: bold;'>{airline}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{dep_arr}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{duration}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{stops}</td>"
+                        f"<td style='padding: 12px; border-bottom: 1px solid #e0e0e0;'>{price_label}</td>"
+                        f"</tr>"
+                    )
+                    html_rows.append(row)
                     
-                table_html = f"""
-                <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;">
-                    <thead>
-                        <tr style="background-color: #f8f9fa; border-bottom: 2px solid #e0e0e0; text-align: left;">
-                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Airline</th>
-                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Departure &rarr; Arrival</th>
-                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Duration</th>
-                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Stops</th>
-                            <th style="padding: 12px; font-weight: bold; color: #5f6368;">Price (CAD)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {"".join(html_rows)}
-                    </tbody>
-                </table>
-                """
+                table_html = (
+                    f"<table style='width: 100%; border-collapse: collapse; font-family: \"Inter\", sans-serif; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid #e0e0e0;'>"
+                    f"<thead>"
+                    f"<tr style='background-color: #f8f9fa; border-bottom: 2px solid #e0e0e0; text-align: left;'>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Airline</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Departure &rarr; Arrival</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Duration</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Stops</th>"
+                    f"<th style='padding: 12px; font-weight: bold; color: #5f6368;'>Price (CAD)</th>"
+                    f"</tr>"
+                    f"</thead>"
+                    f"<tbody>"
+                    f"{''.join(html_rows)}"
+                    f"</tbody>"
+                    f"</table>"
+                )
                 st.markdown(table_html, unsafe_allow_html=True)
                 st.write("")
             else:
