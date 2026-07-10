@@ -299,8 +299,17 @@ def main():
         
         with st.spinner(f"Running '{selected_task}'..."):
             try:
-                # Instantiate and run (headless parameter toggled by checkbox)
-                with task_class(settings, headless=not show_browser) as task:
+                # Check if running in a headless Linux server environment (like Streamlit Cloud)
+                # and force headless=True to prevent "Missing X server or $DISPLAY" crashes.
+                import sys
+                is_headless_env = (sys.platform.startswith("linux") and not os.environ.get("DISPLAY"))
+                actual_headless = True if is_headless_env else (not show_browser)
+                
+                if show_browser and is_headless_env:
+                    st.sidebar.warning("👁️ Window hidden. Deployed cloud servers do not support visual displays.")
+                    
+                # Instantiate and run (headless parameter toggled by checkbox or forced)
+                with task_class(settings, headless=actual_headless) as task:
                     results_list = task.execute()
                 
                 duration = time.time() - start_time
