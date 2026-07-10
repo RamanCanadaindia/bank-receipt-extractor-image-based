@@ -41,14 +41,32 @@ class BaseTask:
             if "executable" in err_str or "not installed" in err_str or "find" in err_str or "playwright install" in err_str:
                 print(f"[{self.task_name}] Playwright chromium not found. Installing chromium browser binaries...")
                 import subprocess
+                installed_ok = False
+                # Try system command first
                 try:
-                    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
-                    self.browser = self.playwright.chromium.launch(
-                        headless=self.headless,
-                        args=["--disable-blink-features=AutomationControlled"]
-                    )
-                except Exception as install_err:
-                    print(f"[{self.task_name}] Failed to automatically install playwright chromium: {install_err}")
+                    subprocess.run(["playwright", "install", "chromium"], check=True)
+                    installed_ok = True
+                except Exception as e1:
+                    print(f"[{self.task_name}] System playwright install failed ({e1}). Trying via python module...")
+                    
+                # Try python module fallback
+                if not installed_ok:
+                    try:
+                        subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+                        installed_ok = True
+                    except Exception as e2:
+                        print(f"[{self.task_name}] Python module playwright install failed ({e2}).")
+                
+                if installed_ok:
+                    try:
+                        self.browser = self.playwright.chromium.launch(
+                            headless=self.headless,
+                            args=["--disable-blink-features=AutomationControlled"]
+                        )
+                    except Exception as launch_retry_err:
+                        print(f"[{self.task_name}] Failed to launch browser even after installation attempt: {launch_retry_err}")
+                        raise launch_err
+                else:
                     raise launch_err
             else:
                 raise launch_err
