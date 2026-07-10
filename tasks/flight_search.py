@@ -29,9 +29,9 @@ class FlightSearchTask(BaseTask):
 
         # Construct Google Flights query link based on Trip Type
         if trip_type == "Round-Trip" and return_date:
-            query = f"Flights from {origin} to {destination} on {date} returning {return_date}"
+            query = f"Round-trip flights from {origin} to {destination} on {date} returning {return_date}"
         else:
-            query = f"Flights from {origin} to {destination} on {date}"
+            query = f"One-way flights from {origin} to {destination} on {date}"
             
         encoded_query = query.replace(" ", "%20")
         target_url = f"https://www.google.com/travel/flights?q={encoded_query}"
