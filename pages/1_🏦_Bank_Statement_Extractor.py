@@ -163,7 +163,9 @@ institution = ""
 statement_start = date(2024, 1, 1)
 statement_end = date(2024, 12, 31)
 try:
-    default_sheet_id = st.secrets.get("google_sheets", {}).get("spreadsheet_id", "")
+    default_sheet_id = st.secrets.get("google_spreadsheet_id", "")
+    if not default_sheet_id:
+        default_sheet_id = st.secrets.get("google_sheets", {}).get("spreadsheet_id", "")
 except Exception:
     default_sheet_id = ""
 

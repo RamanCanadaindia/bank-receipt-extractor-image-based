@@ -509,6 +509,8 @@ with col_right:
         with col_exp2:
             try:
                 default_sheet_id = st.secrets.get("google_spreadsheet_id", "")
+                if not default_sheet_id:
+                    default_sheet_id = st.secrets.get("google_sheets", {}).get("spreadsheet_id", "")
             except Exception:
                 default_sheet_id = ""
             spreadsheet_input = st.text_input(
