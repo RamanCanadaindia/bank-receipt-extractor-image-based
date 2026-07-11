@@ -120,6 +120,9 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
     
     clean_str = str(date_str).strip().lower().replace(",", "")
     
+    # Deduplicate double struck characters (e.g., 1144mmaarr -> 14mar)
+    clean_str = re.sub(r'(.)\1', r'\1', clean_str)
+    
     if clean_str.isdigit():
         return None, None
     
@@ -130,6 +133,25 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
         year = int(year_match.group(1))
         clean_str = re.sub(r'\b(20\d{2}|19\d{2})\b', '', clean_str).strip()
         
+    # Check for combined Day Month format (e.g., "28feb" or "14mar")
+    m_comb = re.match(r'^(\d{1,2})([a-z]{3,})$', clean_str)
+    if m_comb:
+        day_val, month_name = m_comb.groups()
+        month_name = month_name[:3]
+        month_num = months_map.get(month_name, 1)
+        day_num = int(day_val)
+        
+        if year is None:
+            if start_month <= end_month:
+                year = start_year
+            else:
+                if month_num >= start_month:
+                    year = start_year
+                else:
+                    year = end_year
+                    
+        return f"{year}-{month_num:02d}-{day_num:02d}", month_num
+
     # Check for Month Day format (e.g., "Jan 15", "Dec 2")
     m = re.match(r'^([a-z]{3})\s+(\d{1,2})$', clean_str)
     if m:
@@ -212,19 +234,36 @@ def looks_like_date_word(word):
     w = str(word).lower().strip().strip(",.*:()#")
     if not w:
         return False
-    if w.isdigit():
-        if len(w) == 4 and (w.startswith("19") or w.startswith("20")):
+        
+    # Clean double struck characters if present (e.g. 1144mmaarr -> 14mar)
+    w_clean = re.sub(r'(.)\1', r'\1', w)
+    
+    if w_clean.isdigit():
+        if len(w_clean) == 4 and (w_clean.startswith("19") or w_clean.startswith("20")):
             return False
         return True
+        
+    # Match combined day-month like "28feb" or "14mar"
+    m = re.match(r'^(\d{1,2})([a-z]{3,})$', w_clean)
+    if m:
+        day_str, month_name = m.groups()
+        month_name = month_name[:3]
+        months = {
+            "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+            "janv", "fevr", "mars", "avr", "mai", "juin", "juil", "aout", "sept", "dece"
+        }
+        if month_name in months:
+            return True
+            
     months = {
         "jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
         "january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
         "janv", "fevr", "mars", "avr", "mai", "juin", "juil", "aout", "sept", "dece", "decembre"
     }
-    if w in months:
+    if w_clean in months:
         return True
-    if "/" in w or "-" in w:
-        if any(c.isdigit() for c in w):
+    if "/" in w_clean or "-" in w_clean:
+        if any(c.isdigit() for c in w_clean):
             return True
     return False
 
@@ -395,11 +434,11 @@ def extract_digital_pdf(pdf_path, bank_name):
                         # Allow height tolerance of 5 pt to capture all headers on the same row
                         if abs(w["top"] - header_top) <= 5.0:
                             w_text = w["text"].lower()
-                            if w_text in ("withdrawals", "debit", "debits", "payments", "charges", "withdrawals($)", "cheques"):
+                            if any(t in w_text for t in ("debit", "withdraw", "payment", "charge", "cheque")):
                                 debit_x_coords.append((w["x0"], w["x1"]))
-                            elif w_text in ("deposits", "credit", "credits", "receipts", "deposits($)"):
+                            elif any(t in w_text for t in ("credit", "deposit", "receipt")):
                                 credit_x_coords.append((w["x0"], w["x1"]))
-                            elif w_text in ("balance", "balance($)"):
+                            elif "balance" in w_text:
                                 balance_x_coords.append((w["x0"], w["x1"]))
                 
                 # Default fallback X ranges based on bank layouts
@@ -511,7 +550,12 @@ def extract_digital_pdf(pdf_path, bank_name):
                         # Clean amounts helper
                         is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
                         
-                        date_limit = (post_x0 - 2.0) if (is_credit_card and post_x0 is not None) else (70.0 if is_credit_card else 95.0)
+                        # Dynamic date limit based on description column position
+                        if desc_x0 is not None:
+                            date_limit = desc_x0 - 5.0
+                        else:
+                            date_limit = (post_x0 - 2.0) if (is_credit_card and post_x0 is not None) else (70.0 if is_credit_card else 95.0)
+                            
                         desc_limit = (desc_x0 - 5.0) if (is_credit_card and desc_x0 is not None) else (110.0 if is_credit_card else 95.0)
                         
                         if is_credit_card and date_limit <= x_mid < desc_limit:
