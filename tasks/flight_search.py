@@ -27,6 +27,35 @@ class FlightSearchTask(BaseTask):
         if not origin or not destination or not date:
             raise ValueError("Flight search requires 'origin', 'destination', and 'date' to be configured.")
 
+        # Check for SerpAPI key
+        serpapi_key = self.settings.get("serpapi_key")
+        if not serpapi_key:
+            try:
+                import streamlit as st
+                if "serpapi_key" in st.secrets:
+                    serpapi_key = st.secrets["serpapi_key"]
+                elif "SERPAPI_API_KEY" in st.secrets:
+                    serpapi_key = st.secrets["SERPAPI_API_KEY"]
+            except:
+                pass
+        
+        # Default user requested fallback key
+        if not serpapi_key:
+            serpapi_key = "292a77dbb7a2ad9270d1f371d84734409e1a50a281005df5cd57ab3faaa42565"
+
+        if serpapi_key:
+            try:
+                print(f"[FlightSearch] Running SerpAPI Google Flights Engine for route {origin} -> {destination}...")
+                results = self._fetch_via_serpapi(origin, destination, date, return_date, trip_type, max_results, serpapi_key)
+                if results:
+                    # Add recommendations
+                    results = self._add_flight_recommendations(results)
+                    # Save to Excel
+                    save_to_excel(results, "Flight Search")
+                    return results
+            except Exception as e:
+                print(f"[FlightSearch] SerpAPI fetch failed: {e}. Falling back to Playwright web scraper.")
+
         # Construct Google Flights query link based on Trip Type
         if trip_type == "Round-Trip" and return_date:
             query = f"Round-trip flights from {origin} to {destination} on {date} returning {return_date}"
@@ -408,3 +437,76 @@ class FlightSearchTask(BaseTask):
                 r["Recommendation"] = "Alternative Option"
 
         return results
+
+    def _fetch_via_serpapi(self, origin, destination, date, return_date, trip_type, max_results, api_key):
+        import urllib.request
+        import urllib.parse
+        import json
+
+        params = {
+            "engine": "google_flights",
+            "departure_id": origin,
+            "arrival_id": destination,
+            "outbound_date": date,
+            "api_key": api_key,
+            "currency": "CAD",
+            "hl": "en"
+        }
+        if trip_type == "Round-Trip" and return_date:
+            params["return_date"] = return_date
+        
+        query_string = urllib.parse.urlencode(params)
+        url = f"https://serpapi.com/search?{query_string}"
+        
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=15) as response:
+            data = json.loads(response.read().decode("utf-8"))
+            
+        flights = []
+        best_flights = data.get("best_flights", [])
+        other_flights = data.get("other_flights", [])
+        all_results = best_flights + other_flights
+        
+        for flight in all_results[:max_results]:
+            legs = flight.get("flights", [])
+            airline = "Unknown"
+            departure = "Unknown"
+            arrival = "Unknown"
+            duration = "Unknown"
+            stops = "Unknown"
+            
+            if legs:
+                airline = legs[0].get("airline", "Unknown")
+                departure = legs[0].get("departure_airport", {}).get("time", "Unknown")
+                arrival = legs[-1].get("arrival_airport", {}).get("time", "Unknown")
+                duration = f"{flight.get('total_duration', 0) // 60}h {flight.get('total_duration', 0) % 60}m"
+                stops = "Nonstop" if len(legs) == 1 else f"{len(legs) - 1} stop"
+                if len(legs) > 2:
+                    stops = f"{len(legs) - 1} stops"
+
+            price_val = flight.get("price", "N/A")
+            if isinstance(price_val, (int, float)):
+                price_str = f"${price_val:.0f}"
+            else:
+                price_str = str(price_val)
+
+            booking_link = f"https://www.google.com/travel/flights?q=Flights%20from%20{origin}%20to%20{destination}%20on%20{date}"
+            if trip_type == "Round-Trip" and return_date:
+                booking_link += f"%20returning%20{return_date}"
+
+            flights.append({
+                "Origin": origin,
+                "Destination": destination,
+                "Trip Type": trip_type,
+                "Date": date,
+                "Return Date": return_date if (trip_type == "Round-Trip" and return_date) else "N/A",
+                "Airline": airline,
+                "Departure": departure,
+                "Arrival": arrival,
+                "Duration": duration,
+                "Stops": stops,
+                "Price": price_str,
+                "Booking Link": booking_link
+            })
+            
+        return flights
