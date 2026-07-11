@@ -74,12 +74,41 @@ Save **$11/month** by using your own Gemini-powered OCR system! Scan purchase re
 
 # Sidebar config
 st.sidebar.header("⚙️ Configuration")
+
+api_key_default = os.environ.get("GEMINI_API_KEY", "")
+try:
+    if not api_key_default and "GEMINI_API_KEY" in st.secrets:
+        api_key_default = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
+
 api_key = st.sidebar.text_input(
     "Google AI Studio API Key",
     type="password",
-    value=os.environ.get("GEMINI_API_KEY", ""),
+    value=api_key_default,
     help="Get a free key from https://aistudio.google.com/"
 )
+
+if api_key != api_key_default:
+    if st.sidebar.button("💾 Save API Key locally", key="save_api_key_receipt"):
+        try:
+            import toml
+            config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".streamlit")
+            os.makedirs(config_dir, exist_ok=True)
+            secrets_path = os.path.join(config_dir, "secrets.toml")
+            data = {}
+            if os.path.exists(secrets_path):
+                try:
+                    data = toml.load(secrets_path)
+                except:
+                    pass
+            data["GEMINI_API_KEY"] = api_key
+            with open(secrets_path, "w") as f:
+                toml.dump(data, f)
+            st.sidebar.success("API Key saved successfully!")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Failed to save key: {e}")
 
 model = st.sidebar.selectbox(
     "Gemini OCR Model",

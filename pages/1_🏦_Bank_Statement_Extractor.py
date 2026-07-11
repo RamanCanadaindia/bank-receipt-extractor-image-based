@@ -93,6 +93,27 @@ api_key = st.sidebar.text_input(
     help="Required for scanned/image-only PDFs. Get a free key at https://aistudio.google.com/"
 )
 
+if api_key != api_key_default:
+    if st.sidebar.button("💾 Save API Key locally", key="save_api_key_bank"):
+        try:
+            import toml
+            config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".streamlit")
+            os.makedirs(config_dir, exist_ok=True)
+            secrets_path = os.path.join(config_dir, "secrets.toml")
+            data = {}
+            if os.path.exists(secrets_path):
+                try:
+                    data = toml.load(secrets_path)
+                except:
+                    pass
+            data["GEMINI_API_KEY"] = api_key
+            with open(secrets_path, "w") as f:
+                toml.dump(data, f)
+            st.sidebar.success("API Key saved successfully!")
+            st.rerun()
+        except Exception as e:
+            st.sidebar.error(f"Failed to save key: {e}")
+
 extraction_engine = st.sidebar.radio(
     "Extraction Engine",
     ["Gemini AI Engine (Cloud OCR)", "Local Python Engine (Private & Offline)"],
