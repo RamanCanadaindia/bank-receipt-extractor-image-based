@@ -314,7 +314,14 @@ def extract_digital_pdf(pdf_path, bank_name):
         
     # 1. Determine the statement period dates context
     start_year, start_month, end_year, end_month = extract_statement_period(raw_text)
-    is_credit_card = "visa" in raw_text.lower() or "mastercard" in raw_text.lower() or "card" in raw_text.lower()
+    
+    # Robust credit card detection
+    is_credit_card = False
+    header_area = raw_text[:1200].lower()
+    if "visa" in header_area or "mastercard" in header_area or "credit card" in header_area:
+        is_credit_card = True
+    if "business account statement" in header_area or "royal bank of canada business" in header_area:
+        is_credit_card = False
     
     prev_bal = None
     ending_bal = None
