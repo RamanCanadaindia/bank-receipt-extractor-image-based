@@ -178,12 +178,14 @@ with col_left:
         basis_of_accounting = "Income Tax Basis"
 
     # 2. File Upload & Processing
-    api_key_default = os.environ.get("GEMINI_API_KEY", "")
-    try:
-        if not api_key_default and "GEMINI_API_KEY" in st.secrets:
-            api_key_default = st.secrets["GEMINI_API_KEY"]
-    except Exception:
-        pass
+    api_key_default = st.session_state.get("GEMINI_API_KEY", "")
+    if not api_key_default:
+        api_key_default = os.environ.get("GEMINI_API_KEY", "")
+        try:
+            if not api_key_default and "GEMINI_API_KEY" in st.secrets:
+                api_key_default = st.secrets["GEMINI_API_KEY"]
+        except Exception:
+            pass
 
     api_key = st.sidebar.text_input(
         "Google AI Studio API Key",
@@ -194,6 +196,8 @@ with col_left:
 
     if st.sidebar.button("💾 Save API Key", key="save_api_key_notice"):
         try:
+            st.session_state["GEMINI_API_KEY"] = api_key
+            
             import toml
             config_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".streamlit")
             os.makedirs(config_dir, exist_ok=True)
@@ -207,7 +211,10 @@ with col_left:
             data["GEMINI_API_KEY"] = api_key
             with open(secrets_path, "w") as f:
                 toml.dump(data, f)
-            st.sidebar.success("API Key saved successfully!")
+            st.sidebar.success("API Key saved to local secrets.toml!")
+            st.rerun()
+        except OSError:
+            st.sidebar.success("API Key saved to browser session!")
             st.rerun()
         except Exception as e:
             st.sidebar.error(f"Failed to save key: {e}")
