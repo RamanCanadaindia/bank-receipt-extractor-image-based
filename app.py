@@ -82,7 +82,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Grid Layout
-col_statements, col_receipts, col_playwright = st.columns(3)
+col_statements, col_receipts = st.columns(2)
 
 with col_statements:
     st.markdown("""
@@ -109,20 +109,6 @@ with col_receipts:
             into a consolidated Wave-compatible Excel/CSV sheet, replacing paid bookkeeping plans.
         </div>
         <div class="nav-instruction">👈 Select "2 🧾 Receipt Scanner" in the sidebar</div>
-    </div>
-    """, unsafe_allow_html=True)
-
-with col_playwright:
-    st.markdown("""
-    <div class="tool-card">
-        <div class="tool-icon">🤖</div>
-        <div class="tool-name">Playwright Web Automator</div>
-        <div class="tool-desc">
-            Execute automated Google Searches, parse website content, scrape competitors, and run custom queries. 
-            Features a Comet-style Google Flights Finder that automatically tracks round-trips, bypasses error 
-            screens, and highlights the best travel options.
-        </div>
-        <div class="nav-instruction">👈 Select "5 🤖 Playwright Automation" in the sidebar</div>
     </div>
     """, unsafe_allow_html=True)
 
