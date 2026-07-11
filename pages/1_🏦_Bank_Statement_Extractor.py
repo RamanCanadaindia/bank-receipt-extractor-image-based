@@ -80,8 +80,11 @@ st.sidebar.header("⚙️ Configuration")
 
 # API Key management
 api_key_default = os.environ.get("GEMINI_API_KEY", "")
-if not api_key_default and "GEMINI_API_KEY" in st.secrets:
-    api_key_default = st.secrets["GEMINI_API_KEY"]
+try:
+    if not api_key_default and "GEMINI_API_KEY" in st.secrets:
+        api_key_default = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
     
 api_key = st.sidebar.text_input(
     "Google AI Studio API Key",
@@ -130,9 +133,14 @@ account_name = ""
 institution = ""
 statement_start = date(2024, 1, 1)
 statement_end = date(2024, 12, 31)
+try:
+    default_sheet_id = st.secrets.get("google_sheets", {}).get("spreadsheet_id", "")
+except Exception:
+    default_sheet_id = ""
+
 target_spreadsheet_id = st.sidebar.text_input(
     "Target Google Sheet ID / URL",
-    value=st.secrets.get("google_sheets", {}).get("spreadsheet_id", ""),
+    value=default_sheet_id,
     help="Paste the target Google Sheet's browser URL or its ID here. Ensure you've shared the Sheet with the service account email."
 )
 dest_sheet_override = st.sidebar.selectbox(
@@ -891,7 +899,10 @@ if uploaded_files:
         st.markdown("---")
         st.subheader("📤 Google Sheets Integration")
         
-        has_sheets_secrets = "gcp_service_account" in st.secrets or "gcp_service_account_json" in st.secrets
+        try:
+            has_sheets_secrets = "gcp_service_account" in st.secrets or "gcp_service_account_json" in st.secrets
+        except Exception:
+            has_sheets_secrets = False
         if not has_sheets_secrets:
             st.warning("⚠️ Google Sheets credentials are not configured in secrets. Please configure secrets.toml or Streamlit Cloud Settings to enable sync.")
         else:

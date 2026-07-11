@@ -4,6 +4,7 @@ import time
 import os
 import re
 from datetime import datetime
+from typing import List, Dict, Tuple, Optional
 
 # Import modular investment engine components
 from utils.real_estate.models import PropertyListing, FinancialInputs, PropertyEvaluation
@@ -506,7 +507,10 @@ with col_right:
             )
             
         with col_exp2:
-            default_sheet_id = st.secrets.get("google_spreadsheet_id", "")
+            try:
+                default_sheet_id = st.secrets.get("google_spreadsheet_id", "")
+            except Exception:
+                default_sheet_id = ""
             spreadsheet_input = st.text_input(
                 "Google Sheet Link / URL:",
                 value=default_sheet_id,
