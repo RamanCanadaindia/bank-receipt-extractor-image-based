@@ -147,6 +147,24 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
                     year = end_year
                     
         return f"{year}-{month_num:02d}-{day_num:02d}", month_num
+
+    # Check for Day Month format (e.g., "28 Feb", "3 Mar")
+    m_day = re.match(r'^(\d{1,2})\s+([a-z]{3})$', clean_str)
+    if m_day:
+        day_val, month_name = m_day.groups()
+        month_num = months_map.get(month_name, 1)
+        day_num = int(day_val)
+        
+        if year is None:
+            if start_month <= end_month:
+                year = start_year
+            else:
+                if month_num >= start_month:
+                    year = start_year
+                else:
+                    year = end_year
+                    
+        return f"{year}-{month_num:02d}-{day_num:02d}", month_num
         
     # Check for numerical Slash format (e.g., "12/25", "12-25", "01/02")
     m = re.match(r'^(\d{1,2})[/\-](\d{1,2})$', clean_str)
@@ -377,9 +395,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                         # Allow height tolerance of 5 pt to capture all headers on the same row
                         if abs(w["top"] - header_top) <= 5.0:
                             w_text = w["text"].lower()
-                            if w_text in ("withdrawals", "debit", "payments", "charges", "withdrawals($)"):
+                            if w_text in ("withdrawals", "debit", "debits", "payments", "charges", "withdrawals($)", "cheques"):
                                 debit_x_coords.append((w["x0"], w["x1"]))
-                            elif w_text in ("deposits", "credit", "receipts", "deposits($)"):
+                            elif w_text in ("deposits", "credit", "credits", "receipts", "deposits($)"):
                                 credit_x_coords.append((w["x0"], w["x1"]))
                             elif w_text in ("balance", "balance($)"):
                                 balance_x_coords.append((w["x0"], w["x1"]))
