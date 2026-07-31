@@ -82,9 +82,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Grid Layout
-col_statements, col_receipts = st.columns(2)
+row1_col1, row1_col2 = st.columns(2)
 
-with col_statements:
+with row1_col1:
     st.markdown("""
     <div class="tool-card">
         <div class="tool-icon">🏦</div>
@@ -98,7 +98,7 @@ with col_statements:
     </div>
     """, unsafe_allow_html=True)
 
-with col_receipts:
+with row1_col2:
     st.markdown("""
     <div class="tool-card">
         <div class="tool-icon">🧾</div>
@@ -106,9 +106,39 @@ with col_receipts:
         <div class="tool-desc">
             Scan purchase receipt images and invoice PDFs. Extracts vendor name, purchase date, 
             invoice number, total amount, tax, and GST components. Compiles invoices in parallel 
-            into a consolidated Wave-compatible Excel/CSV sheet, replacing paid bookkeeping plans.
+            into a consolidated Wave-compatible Excel/CSV sheet.
         </div>
         <div class="nav-instruction">👈 Select "2 🧾 Receipt Scanner" in the sidebar</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("")
+
+row2_col1, row2_col2 = st.columns(2)
+
+with row2_col1:
+    st.markdown("""
+    <div class="tool-card">
+        <div class="tool-icon">📋</div>
+        <div class="tool-name">Notice to Reader compiler</div>
+        <div class="tool-desc">
+            Compile financial statements including Balance Sheets, Income Statements, and Notes to Financial Statements. 
+            Perfect for corporate tax filing preparation, internal management reporting, and CPA bookkeeping handoffs.
+        </div>
+        <div class="nav-instruction">👈 Select "3 📋 Notice to Reader" in the sidebar</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with row2_col2:
+    st.markdown("""
+    <div class="tool-card">
+        <div class="tool-icon">📊</div>
+        <div class="tool-name">Monthly Financial Dashboard</div>
+        <div class="tool-desc">
+            Visualize income vs. expenses, savings rates, and expense distribution by categories. 
+            Connects to your Google Sheet to pull clean transactional data and generate visual summaries by month.
+        </div>
+        <div class="nav-instruction">👈 Select "4 📊 Monthly Dashboard" in the sidebar</div>
     </div>
     """, unsafe_allow_html=True)
 

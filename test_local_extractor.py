@@ -39,6 +39,11 @@ class TestLocalExtractor(unittest.TestCase):
         parsed, month = local_extractor.parse_date("Jan 05", 2025, 12, 2026, 1)
         self.assertEqual(parsed, "2026-01-05")
         self.assertEqual(month, 1)
+        
+        # BMO dot date and double date parsing
+        parsed, month = local_extractor.parse_date("Jun. 26 Jun. 29", 2026, 6, 2026, 7)
+        self.assertEqual(parsed, "2026-06-26")
+        self.assertEqual(month, 6)
 
     def test_reconciliation_math(self):
         """Test reconciliation checking and warning logic."""

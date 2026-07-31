@@ -2,21 +2,26 @@ import os
 import pandas as pd
 from openpyxl import load_workbook
 
-def save_to_excel(data, sheet_name, file_path="output/results.xlsx"):
+def save_to_excel(data, sheet_name, file_path="output/results.xlsx", return_bytes=False):
     """
     Saves a list of dictionaries (data) to a specific sheet in results.xlsx.
     Creates the directory and file if they do not exist.
     If the file exists, it updates or creates the specified sheet while keeping other sheets intact.
+    If return_bytes is True, returns the Excel file as in-memory bytes.
     """
     if not data:
         print(f"No data to save for sheet '{sheet_name}'.")
-        return
+        return b"" if return_bytes else None
 
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
-    
     # Convert data list of dicts to DataFrame
     df = pd.DataFrame(data)
+
+    if return_bytes:
+        import io
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df.to_excel(writer, sheet_name=sheet_name, index=False)
+        return buffer.getvalue()
 
     # If file doesn't exist, write fresh Excel file
     if not os.path.exists(file_path):

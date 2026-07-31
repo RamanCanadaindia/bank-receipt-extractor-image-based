@@ -118,10 +118,19 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
         "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
     }
     
-    clean_str = str(date_str).strip().lower().replace(",", "")
+    clean_str = str(date_str).strip().lower().replace(",", "").replace(".", "")
     
     # Deduplicate double struck characters (e.g., 1144mmaarr -> 14mar)
     clean_str = re.sub(r'(.)\1', r'\1', clean_str)
+    
+    # Extract first date if multiple dates are present (e.g., transaction + posting dates)
+    m_md = re.search(r'\b([a-z]{3})\s+(\d{1,2})\b', clean_str)
+    if m_md:
+        clean_str = f"{m_md.group(1)} {m_md.group(2)}"
+    else:
+        m_dm = re.search(r'\b(\d{1,2})\s+([a-z]{3})\b', clean_str)
+        if m_dm:
+            clean_str = f"{m_dm.group(1)} {m_dm.group(2)}"
     
     if clean_str.isdigit():
         return None, None
@@ -385,14 +394,14 @@ def extract_digital_pdf(pdf_path, bank_name):
     if is_credit_card:
         txt_lower = raw_text.lower()
         # Find previous balance
-        m_prev = re.search(r'previous\s+balance\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+        m_prev = re.search(r'(?:previous|opening|prior)\s+(?:total\s+)?(?:statement\s+)?balance\s*(?:forward)?(?:,?\s*[a-z]{3,}\.?\s+\d{1,2},?\s+\d{4})?\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
         if m_prev:
             try:
                 prev_bal = float(m_prev.group(1).replace(",", ""))
             except ValueError:
                 pass
         # Find ending balance
-        m_end = re.search(r'(?:total|new|ending|closing)\s+balance\s*(?:=|\s)\s*[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+        m_end = re.search(r'(?:total|new|ending|closing|current)\s+(?:statement\s+)?balance\s*(?:due)?\s*(?:=|\s)\s*[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
         if m_end:
             try:
                 ending_bal = float(m_end.group(1).replace(",", ""))
@@ -438,14 +447,17 @@ def extract_digital_pdf(pdf_path, bank_name):
                                 debit_x_coords.append((w["x0"], w["x1"]))
                             elif any(t in w_text for t in ("credit", "deposit", "receipt")):
                                 credit_x_coords.append((w["x0"], w["x1"]))
-                            elif "balance" in w_text:
+                            elif "balance" in w_text or "amount" in w_text:
                                 balance_x_coords.append((w["x0"], w["x1"]))
                 
                 # Default fallback X ranges based on bank layouts
                 if is_credit_card:
                     deb_range = (999.0, 999.0)
                     cred_range = (999.0, 999.0)
-                    bal_range = (500.0, 580.0)
+                    if bank_name == "BMO":
+                        bal_range = (370.0, 420.0)
+                    else:
+                        bal_range = (500.0, 580.0)
                 elif bank_name == "RBC":
                     deb_range = (300.0, 410.0)
                     cred_range = (410.0, 510.0)
@@ -504,7 +516,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                     
                     # 1. Detect start and end markers
                     if is_credit_card:
-                        if "your payments" in line_txt_lower or "your new charges and credits" in line_txt_lower:
+                        if "your payments" in line_txt_lower or "your new charges and credits" in line_txt_lower or "transactions since" in line_txt_lower:
                             active_extraction = True
                             continue
                         
@@ -514,7 +526,10 @@ def extract_digital_pdf(pdf_path, bank_name):
                             "cibc creditsmart spend report",
                             "your message centre",
                             "go paperless",
-                            "total for 4500"
+                            "total for 4500",
+                            "subtotal for",
+                            "total for card",
+                            "pre-authorized debit"
                         ]):
                             active_extraction = False
                             continue
@@ -582,9 +597,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                     if is_disclaimer_or_metadata(desc_str):
                         continue
                         
-                    # Filter out empty spacer rows
                     if date_str or desc_str or debit_str or credit_str or balance_str:
                         raw_rows.append({
+                            "page_num": page.page_number,
                             "date_raw": date_str,
                             "description": desc_str,
                             "debit_raw": debit_str,
@@ -646,7 +661,7 @@ def extract_digital_pdf(pdf_path, bank_name):
             
         # If this is a multiline description continuation (no date, no amount, no balance)
         if not date_raw and not debit_raw and not credit_raw and not balance_raw:
-            if transactions and desc:
+            if transactions and desc and transactions[-1].get("page_num") == r["page_num"]:
                 # Append description to previous transaction
                 transactions[-1]["description"] += " " + desc
             continue
@@ -666,7 +681,7 @@ def extract_digital_pdf(pdf_path, bank_name):
         except ValueError: pass
 
         if not date_raw and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
-            if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None:
+            if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None and transactions[-1].get("page_num") == r["page_num"]:
                 if desc:
                     transactions[-1]["description"] += " " + desc
                 transactions[-1]["debit"] = temp_debit
@@ -679,16 +694,21 @@ def extract_digital_pdf(pdf_path, bank_name):
         credit = None
         balance = None
         
+        # Clean numeric strings of "CR" / "cr"
+        deb_clean_str = re.sub(r'cr', '', debit_raw, flags=re.IGNORECASE).strip() if debit_raw else ""
+        cred_clean_str = re.sub(r'cr', '', credit_raw, flags=re.IGNORECASE).strip() if credit_raw else ""
+        bal_clean_str = re.sub(r'cr', '', balance_raw, flags=re.IGNORECASE).strip() if balance_raw else ""
+        
         try:
-            if debit_raw: debit = float(debit_raw)
+            if deb_clean_str: debit = float(deb_clean_str)
         except ValueError: pass
         
         try:
-            if credit_raw: credit = float(credit_raw)
+            if cred_clean_str: credit = float(cred_clean_str)
         except ValueError: pass
         
         try:
-            if balance_raw: balance = float(balance_raw)
+            if bal_clean_str: balance = float(bal_clean_str)
         except ValueError: pass
         
         # If credit card statement, amount is in balance, determine debit/credit
@@ -696,7 +716,16 @@ def extract_digital_pdf(pdf_path, bank_name):
             val_amt = balance
             balance = None
             desc_lower = desc.lower()
-            if "payment" in desc_lower or "thank you" in desc_lower or "paiment" in desc_lower or "refund" in desc_lower or "credit" in desc_lower or "rebate" in desc_lower or val_amt < 0:
+            
+            is_cr = "CR" in debit_raw.upper() or "CR" in credit_raw.upper() or "CR" in balance_raw.upper()
+            if desc_lower.endswith(" cr"):
+                is_cr = True
+                desc = desc[:-3].strip()
+            elif " cr " in desc_lower:
+                is_cr = True
+                desc = re.sub(r'\s+cr\s+', ' ', desc, flags=re.IGNORECASE).strip()
+                
+            if "payment" in desc_lower or "thank you" in desc_lower or "paiment" in desc_lower or "refund" in desc_lower or "credit" in desc_lower or "rebate" in desc_lower or is_cr or val_amt < 0:
                 credit = abs(val_amt)
                 debit = None
             else:
@@ -744,7 +773,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                 "debit": debit,
                 "credit": credit,
                 "balance": balance,
-                "is_credit_card": is_credit_card
+                "is_credit_card": is_credit_card,
+                "page_num": r["page_num"]
             })
             
     # Remove any completely empty or invalid transactions
