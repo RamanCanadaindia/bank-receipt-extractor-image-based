@@ -431,7 +431,8 @@ if uploaded_files:
                     df = df.sort_values(by='date').reset_index(drop=True)
                 else:
                     is_cc = (df['is_credit_card'].any() if 'is_credit_card' in df.columns else False) or df['description'].str.lower().str.contains("payment thank you|paiement merci").any()
-                    if is_cc:
+                    is_bmo = df['institution'].astype(str).str.lower().str.contains("bmo").any() if 'institution' in df.columns else False
+                    if is_cc and not is_bmo:
                         df['_original_order'] = range(len(df))
                         # Group by Statement Sections (Payments -> Interest -> Charges)
                         payments = []
@@ -535,7 +536,8 @@ if uploaded_files:
                         df = df.sort_values(by='date').reset_index(drop=True)
                     else:
                         is_cc = (df['is_credit_card'].any() if 'is_credit_card' in df.columns else False) or df['description'].str.lower().str.contains("payment thank you|paiement merci").any()
-                        if is_cc:
+                        is_bmo = df['institution'].astype(str).str.lower().str.contains("bmo").any() if 'institution' in df.columns else False
+                        if is_cc and not is_bmo:
                             # Group by Statement Sections (Payments -> Interest -> Charges)
                             payments = []
                             interest = []
