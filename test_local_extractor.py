@@ -15,6 +15,10 @@ class TestLocalExtractor(unittest.TestCase):
         self.assertEqual(local_extractor.detect_bank("cibc_checking.pdf"), "CIBC")
         self.assertEqual(local_extractor.detect_bank("tangerine_savings.pdf"), "Tangerine")
         self.assertEqual(local_extractor.detect_bank("vancity_visa.pdf"), "Vancity")
+        self.assertEqual(local_extractor.detect_bank("VCTY_91358035_20260721.pdf"), "Vancity")
+        
+        # Test filename fallback for VCTY abbreviation
+        self.assertEqual(local_extractor.detect_bank("vcty_checking.pdf"), "Vancity")
 
     def test_statement_year_range(self):
         """Test year context parser."""

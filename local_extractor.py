@@ -46,7 +46,7 @@ def detect_bank(pdf_path):
         return "CIBC"
     if "tangerine" in text_lower:
         return "Tangerine"
-    if "vancity" in text_lower or "vancouver city savings" in text_lower:
+    if "vancity" in text_lower or "vancouver city savings" in text_lower or re.search(r'v\s*a\s*n\s*c\s*i\s*t\s*y', text_lower):
         return "Vancity"
         
     # Check filename as fallback
@@ -61,7 +61,7 @@ def detect_bank(pdf_path):
     if "bmo" in filename: return "BMO"
     if "cibc" in filename: return "CIBC"
     if "tangerine" in filename: return "Tangerine"
-    if "vancity" in filename: return "Vancity"
+    if "vancity" in filename or "vcty" in filename: return "Vancity"
     
     return "Standard"
 
@@ -286,6 +286,8 @@ def is_disclaimer_or_metadata(desc_text):
         return False
         
     patterns = [
+        r'^vanas\d+',
+        r'\bvanas\b',
         r'\bpage \d+',
         r'^page\b',
         r'\bpage of\b',
@@ -470,6 +472,10 @@ def extract_digital_pdf(pdf_path, bank_name):
                     deb_range = (320.0, 430.0)
                     cred_range = (430.0, 520.0)
                     bal_range = (520.0, 600.0)
+                elif bank_name == "Vancity":
+                    deb_range = (300.0, 400.0)
+                    cred_range = (400.0, 500.0)
+                    bal_range = (500.0, 600.0)
                 else:
                     # Standard fallback ranges
                     deb_range = (300.0, 400.0)
@@ -653,8 +659,9 @@ def extract_digital_pdf(pdf_path, bank_name):
             try:
                 # Try to parse balance
                 val_bal = float(balance_raw) if balance_raw else (float(debit_raw) if debit_raw else 0.0)
-                opening_bal = val_bal
-                opening_found = True
+                if not opening_found or (opening_bal == 0.0 and val_bal > 0.0):
+                    opening_bal = val_bal
+                    opening_found = True
             except ValueError:
                 pass
             continue
