@@ -142,6 +142,23 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
         year = int(year_match.group(1))
         clean_str = re.sub(r'\b(20\d{2}|19\d{2})\b', '', clean_str).strip()
         
+    # Check for combined Month Day format (e.g., "Jan02"). Some digitally
+    # generated BMO statements omit the visual space between these columns.
+    m_month_day_comb = re.match(r'^([a-z]{3,})(\d{1,2})$', clean_str)
+    if m_month_day_comb:
+        month_name, day_val = m_month_day_comb.groups()
+        month_num = months_map.get(month_name[:3])
+        if month_num is not None:
+            day_num = int(day_val)
+
+            if year is None:
+                if start_month <= end_month:
+                    year = start_year
+                else:
+                    year = start_year if month_num >= start_month else end_year
+
+            return f"{year}-{month_num:02d}-{day_num:02d}", month_num
+
     # Check for combined Day Month format (e.g., "28feb" or "14mar")
     m_comb = re.match(r'^(\d{1,2})([a-z]{3,})$', clean_str)
     if m_comb:
@@ -252,6 +269,14 @@ def looks_like_date_word(word):
             return False
         return True
         
+    # Match combined month-day like "Jan02".
+    m_month_day = re.match(r'^([a-z]{3,})(\d{1,2})$', w_clean)
+    if m_month_day and m_month_day.group(1)[:3] in {
+        "jan", "feb", "mar", "apr", "may", "jun",
+        "jul", "aug", "sep", "oct", "nov", "dec"
+    }:
+        return True
+
     # Match combined day-month like "28feb" or "14mar"
     m = re.match(r'^(\d{1,2})([a-z]{3,})$', w_clean)
     if m:
@@ -286,6 +311,8 @@ def is_disclaimer_or_metadata(desc_text):
         return False
         
     patterns = [
+        r'^continued$',
+        r'^page\s*\d+\s*of\s*\d+$',
         r'^vanas\d+',
         r'\bvanas\b',
         r'\bpage \d+',
@@ -300,16 +327,19 @@ def is_disclaimer_or_metadata(desc_text):
         r'foreign currency exchange',
         r'cibc account statement',
         r'account summary',
+        r'summary of account',
         r'branch transit number',
         r'opening balance on',
         r'closing balance on',
         r'statement period',
+        r'for the period ending',
         r'for questions on this update',
+        r'for questions about your',
         r'contact us by phone',
         r'tty hearing impaired',
         r'outside canada',
         r'www\.cibc\.com',
-        r'balance forward',
+        r'www\.bmo\.com',
         r'transaction details',
         r'\bper-20\d{2}\b',
         r'^\d{4,}\s+per-\d+$',
@@ -337,7 +367,8 @@ def is_disclaimer_or_metadata(desc_text):
         r'annual interest rate',
         r'your payments',
         r'payments and credits',
-        r'pre-authorized payment',
+        r'^pre-authorized payment$',
+        r'pre-authorized payment\s+(plan|details|options|information)',
         r'amount due',
         r'charges and credits',
         r'card number',
@@ -351,7 +382,20 @@ def is_disclaimer_or_metadata(desc_text):
         r'^charges$',
         r'^credits$',
         r'^period$',
-        r'this period'
+        r'this period',
+        r'business account #\s*\d+',
+        r'^business name:?$',
+        r'number\s*of\s*items\s*processed',
+        r'bank of montreal',
+        r'a member of bmo',
+        r'ebusiness plan',
+        r'transit number:',
+        r'data privacy day',
+        r'security tip',
+        r'direct banking',
+        r'amounts debited',
+        r'amounts credited',
+        r'^closing\s*totals'
     ]
     for p in patterns:
         if re.search(p, txt):
@@ -363,22 +407,44 @@ def extract_digital_pdf(pdf_path, bank_name):
     Extracts transactions from a digital text statement PDF using pdfplumber coordinates.
     Filters columns cleanly and groups multiline descriptions.
     """
+    # UploadedFile is a mutable stream shared by Streamlit and several readers.
+    # Snapshot it so each extraction pass gets an independent stream at offset 0.
+    pdf_bytes = None
+    if hasattr(pdf_path, "read"):
+        try:
+            if hasattr(pdf_path, "getvalue"):
+                pdf_bytes = pdf_path.getvalue()
+            else:
+                original_position = pdf_path.tell() if hasattr(pdf_path, "tell") else 0
+                pdf_path.seek(0)
+                pdf_bytes = pdf_path.read()
+                pdf_path.seek(original_position)
+        except Exception:
+            pdf_bytes = None
+
     raw_text = ""
     try:
-        if hasattr(pdf_path, "seek"):
-            pdf_path.seek(0)
-            reader = pypdf.PdfReader(pdf_path)
-            for page in reader.pages:
-                t = page.extract_text()
-                if t: raw_text += t
-        else:
-            with open(pdf_path, "rb") as f:
-                reader = pypdf.PdfReader(f)
-                for page in reader.pages:
-                    t = page.extract_text()
-                    if t: raw_text += t
+        # pdfplumber correctly decodes text in some BMO PDFs where pypdf emits
+        # character-code fragments such as "/2/0/2/5", losing the statement year.
+        pdf_source = io.BytesIO(pdf_bytes) if pdf_bytes is not None else pdf_path
+        with pdfplumber.open(pdf_source) as pdf:
+            raw_text = "\n".join((page.extract_text() or "") for page in pdf.pages)
     except Exception:
-        pass
+        # Keep pypdf as a fallback for PDFs pdfplumber cannot open.
+        try:
+            if pdf_bytes is not None:
+                reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
+                raw_text = "\n".join((page.extract_text() or "") for page in reader.pages)
+            elif hasattr(pdf_path, "seek"):
+                pdf_path.seek(0)
+                reader = pypdf.PdfReader(pdf_path)
+                raw_text = "\n".join((page.extract_text() or "") for page in reader.pages)
+            else:
+                with open(pdf_path, "rb") as f:
+                    reader = pypdf.PdfReader(f)
+                    raw_text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        except Exception:
+            pass
         
     # 1. Determine the statement period dates context
     start_year, start_month, end_year, end_month = extract_statement_period(raw_text)
@@ -414,9 +480,10 @@ def extract_digital_pdf(pdf_path, bank_name):
     
     # 2. Extract tables/lines using pdfplumber coordinates for column positions
     try:
-        if hasattr(pdf_path, "seek"):
+        pdf_source = io.BytesIO(pdf_bytes) if pdf_bytes is not None else pdf_path
+        if pdf_bytes is None and hasattr(pdf_path, "seek"):
             pdf_path.seek(0)
-        with pdfplumber.open(pdf_path) as pdf:
+        with pdfplumber.open(pdf_source) as pdf:
             for page in pdf.pages:
                 words = page.extract_words()
                 # Find vertical coordinates of column headers inside the actual Transaction table header row
@@ -442,14 +509,16 @@ def extract_digital_pdf(pdf_path, bank_name):
                 
                 if header_top is not None:
                     for w in words:
-                        # Allow height tolerance of 5 pt to capture all headers on the same row
-                        if abs(w["top"] - header_top) <= 5.0:
-                            w_text = w["text"].lower()
-                            if any(t in w_text for t in ("debit", "withdraw", "payment", "charge", "cheque")):
+                        # Allow height tolerance of 8 pt to capture multi-line headers (e.g. "Amounts debited from your account ($)")
+                        if abs(w["top"] - header_top) <= 8.0:
+                            w_text = w["text"].lower().strip("(),:$")
+                            if any(t in w_text for t in ("debit", "withdraw", "cheque", "retrait")):
                                 debit_x_coords.append((w["x0"], w["x1"]))
-                            elif any(t in w_text for t in ("credit", "deposit", "receipt")):
+                            elif any(t in w_text for t in ("credit", "deposit", "receipt", "depot")):
                                 credit_x_coords.append((w["x0"], w["x1"]))
-                            elif "balance" in w_text or "amount" in w_text:
+                            elif "balance" in w_text or "solde" in w_text:
+                                balance_x_coords.append((w["x0"], w["x1"]))
+                            elif is_credit_card and ("amount" in w_text or "montant" in w_text):
                                 balance_x_coords.append((w["x0"], w["x1"]))
                 
                 # Default fallback X ranges based on bank layouts
@@ -457,47 +526,49 @@ def extract_digital_pdf(pdf_path, bank_name):
                     deb_range = (999.0, 999.0)
                     cred_range = (999.0, 999.0)
                     if bank_name == "BMO":
-                        bal_range = (370.0, 420.0)
+                        bal_range = (370.0, 430.0)
                     else:
                         bal_range = (500.0, 580.0)
+                elif bank_name == "BMO":
+                    deb_range = (300.0, 420.0)
+                    cred_range = (420.0, 515.0)
+                    bal_range = (515.0, 620.0)
                 elif bank_name == "RBC":
                     deb_range = (300.0, 410.0)
                     cred_range = (410.0, 510.0)
-                    bal_range = (510.0, 600.0)
+                    bal_range = (510.0, 620.0)
                 elif bank_name == "TD":
                     deb_range = (280.0, 380.0)
                     cred_range = (380.0, 480.0)
-                    bal_range = (480.0, 600.0)
+                    bal_range = (480.0, 620.0)
                 elif bank_name == "CIBC":
                     deb_range = (320.0, 430.0)
                     cred_range = (430.0, 520.0)
-                    bal_range = (520.0, 600.0)
+                    bal_range = (520.0, 620.0)
                 elif bank_name == "Vancity":
                     deb_range = (300.0, 400.0)
                     cred_range = (400.0, 500.0)
-                    bal_range = (500.0, 600.0)
+                    bal_range = (500.0, 620.0)
                 else:
                     # Standard fallback ranges
                     deb_range = (300.0, 400.0)
                     cred_range = (400.0, 500.0)
-                    bal_range = (500.0, 600.0)
+                    bal_range = (500.0, 620.0)
                 
-                # Update ranges if actual table header coordinates detected (with safety limit > 200)
-                if debit_x_coords:
-                    min_x = min(coord[0] for coord in debit_x_coords)
-                    max_x = max(coord[1] for coord in debit_x_coords)
-                    if min_x > 200.0:
-                        deb_range = (min_x - 10, max_x + 10)
-                if credit_x_coords:
-                    min_x = min(coord[0] for coord in credit_x_coords)
-                    max_x = max(coord[1] for coord in credit_x_coords)
-                    if min_x > 200.0:
-                        cred_range = (min_x - 10, max_x + 10)
-                if balance_x_coords:
-                    min_x = min(coord[0] for coord in balance_x_coords)
-                    max_x = max(coord[1] for coord in balance_x_coords)
-                    if min_x > 200.0:
-                        bal_range = (min_x - 10, max_x + 10)
+                # Dynamic column boundary partition if headers detected
+                if debit_x_coords and credit_x_coords:
+                    deb_mid = (min(c[0] for c in debit_x_coords) + max(c[1] for c in debit_x_coords)) / 2.0
+                    cred_mid = (min(c[0] for c in credit_x_coords) + max(c[1] for c in credit_x_coords)) / 2.0
+                    split_dc = (deb_mid + cred_mid) / 2.0
+                    if balance_x_coords:
+                        bal_mid = (min(c[0] for c in balance_x_coords) + max(c[1] for c in balance_x_coords)) / 2.0
+                        split_cb = (cred_mid + bal_mid) / 2.0
+                        deb_range = (280.0, split_dc)
+                        cred_range = (split_dc, split_cb)
+                        bal_range = (split_cb, 620.0)
+                    else:
+                        deb_range = (280.0, split_dc)
+                        cred_range = (split_dc, cred_mid + 50.0)
                 
                 # Group words into lines based on vertical coordinate (top)
                 # Group words by rounded top value (to group cells on same horizontal row)
@@ -624,18 +695,13 @@ def extract_digital_pdf(pdf_path, bank_name):
     # Store opening balance
     opening_bal = prev_bal if (is_credit_card and prev_bal is not None) else 0.0
     opening_found = True if (is_credit_card and prev_bal is not None) else False
-    seen_closing_balance = False
     
     for r in raw_rows:
         date_raw = r["date_raw"]
         desc = r["description"]
         
-        if seen_closing_balance:
-            continue
-            
-        desc_lower = desc.lower()
-        if "closing balance" in desc_lower or "ending balance" in desc_lower:
-            seen_closing_balance = True
+        desc_lower = desc.lower().strip()
+        if desc_lower.startswith("closing totals") or desc_lower.startswith("closing balance") or desc_lower == "closing balance" or desc_lower == "ending balance":
             continue
             
         if "date" in desc_lower and "description" in desc_lower:
@@ -646,7 +712,7 @@ def extract_digital_pdf(pdf_path, bank_name):
             continue
             
         desc_clean = desc.lower().strip()
-        if desc_clean.startswith("total") or desc_clean in ("subtotal", "subtotals", "page total", "closing balance"):
+        if desc_clean.startswith("total") or desc_clean in ("subtotal", "subtotals", "page total", "closing balance", "closing totals"):
             continue
             
         debit_raw = r["debit_raw"]
@@ -654,11 +720,10 @@ def extract_digital_pdf(pdf_path, bank_name):
         balance_raw = r["balance_raw"]
         
         # Check if this row is opening balance
-        desc_lower = desc.lower()
-        if "opening" in desc_lower or "balance forward" in desc_lower:
+        if "opening" in desc_lower or "balance forward" in desc_lower or "solde reporté" in desc_lower:
             try:
                 # Try to parse balance
-                val_bal = float(balance_raw) if balance_raw else (float(debit_raw) if debit_raw else 0.0)
+                val_bal = float(balance_raw) if balance_raw else (float(credit_raw) if credit_raw else (float(debit_raw) if debit_raw else 0.0))
                 if not opening_found or (opening_bal == 0.0 and val_bal > 0.0):
                     opening_bal = val_bal
                     opening_found = True
@@ -795,6 +860,65 @@ def extract_digital_pdf(pdf_path, bank_name):
             tx["statement_ending_balance"] = ending_bal
         final_txs.append(tx)
         
+    # Fallback to digital text line parsing if coordinate extraction found 0 transactions
+    if not final_txs and raw_text:
+        months_map = {
+            "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
+            "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12
+        }
+        lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
+        pattern_row = re.compile(r'^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?(?:\s+([\d,]+\.\d{2}))?\s+([\d,]+\.\d{2})$')
+        
+        for line_str in lines:
+            m = pattern_row.match(line_str)
+            if m:
+                m_str, d_str, d_desc, a1, a2, a3 = m.groups()
+                m_key = m_str.lower()[:3]
+                if m_key not in months_map:
+                    continue
+                    
+                month_num = months_map[m_key]
+                day_num = int(d_str)
+                
+                if "opening" in d_desc.lower() or "balance forward" in d_desc.lower():
+                    try:
+                        opening_bal = float(a3.replace(",", ""))
+                    except Exception:
+                        pass
+                    continue
+                    
+                if "closing balance" in d_desc.lower() or "closing totals" in d_desc.lower():
+                    continue
+                    
+                year = start_year if month_num >= start_month else end_year
+                date_str = f"{year}-{month_num:02d}-{day_num:02d}"
+                
+                bal_val = float(a3.replace(",", "")) if a3 else None
+                a1_val = float(a1.replace(",", "")) if a1 else None
+                a2_val = float(a2.replace(",", "")) if a2 else None
+                
+                deb_val = None
+                cred_val = None
+                if a1_val is not None and a2_val is not None:
+                    deb_val = a1_val
+                    cred_val = a2_val
+                elif a1_val is not None:
+                    is_credit = any(k in d_desc.lower() for k in ("deposit", "received", "rebate", "refund", "payroll", "credit", "cr", "depot"))
+                    if is_credit:
+                        cred_val = a1_val
+                    else:
+                        deb_val = a1_val
+                        
+                final_txs.append({
+                    "date": date_str,
+                    "description": d_desc.strip(),
+                    "debit": deb_val,
+                    "credit": cred_val,
+                    "balance": bal_val,
+                    "is_credit_card": is_credit_card,
+                    "page_num": 1
+                })
+
     return final_txs, opening_bal
 
 def reconcile_transactions(transactions, opening_balance):

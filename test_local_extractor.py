@@ -49,6 +49,12 @@ class TestLocalExtractor(unittest.TestCase):
         self.assertEqual(parsed, "2026-06-26")
         self.assertEqual(month, 6)
 
+        # Some BMO digital statements encode the date as one token.
+        parsed, month = local_extractor.parse_date("Jan02", 2025, 1, 2025, 1)
+        self.assertEqual(parsed, "2025-01-02")
+        self.assertEqual(month, 1)
+        self.assertTrue(local_extractor.looks_like_date_word("Jan02"))
+
     def test_reconciliation_math(self):
         """Test reconciliation checking and warning logic."""
         txs = [
@@ -100,6 +106,55 @@ class TestLocalExtractor(unittest.TestCase):
         finally:
             if os.path.exists(temp_excel_path):
                 os.remove(temp_excel_path)
+
+    def test_bmo_digital_parsing(self):
+        """Test BMO digital statement parsing and reconciliation."""
+        import extract_statement
+        page1 = """Business Banking statement
+For the period ending January 31, 2025
+Summary of account
+Account balance ($) debited ($) credited ($) Jan 31, 2025
+Business Account # 0789 1984-032 167.10 1,207.77 1,171.51 130.84
+Transaction details
+Date Description Amounts debited from your account ($) Amounts credited to your account ($) Balance ($)
+Jan 01 Opening balance 167.10
+Jan 02 INTERAC e-Transfer Received 100.00 267.10
+Jan 03 INTERAC e-Transfer Received 472.51 739.61
+Jan 08 Cheque Processed By Branch 650.00 89.61
+Jan 08 INTERAC e-Transfer Received 400.00 489.61
+Jan 09 Debit Card Purchase, UNIWAY COMPUTER 274.40 215.21
+Jan 20 INTERAC e-Transfer Sent 10.00 205.21
+Jan 20 ABM Withdrawal, 7488 KING GEOR 200.00 5.21
+Jan 20 Direct Deposit, INTUIT CANADA P AP /CC 84.00 89.21
+Jan 20 Pre-Authorized Payment, INTUIT CANADA U AP /CC 2.69 86.52
+Jan 23 Pre-Authorized Payment No Fee, BMO PAYMENT BPY/FAC 36.00 50.52"""
+
+        page2 = """Transaction details (continued)
+Date Description Amounts debited from your account ($) Amounts credited to your account ($) Balance ($)
+Jan 23 Debit Card Purchase, NEWTN WAVE POOL 7.50 43.02
+Jan 27 Debit Card Purchase, REAL CDN SUPERS 23.68 19.34
+Jan 28 INTERAC e-Transfer Received 115.00 134.34
+Jan 31 Transaction Fee, EXCESS ITEMS 01 AT $3.50 3.50 130.84
+Jan 31 Closing totals 1,207.77 1,171.51"""
+
+        txs = extract_statement.parse_digital_text([page1, page2])
+        self.assertEqual(len(txs), 14)
+        
+        # Check first and last transaction
+        self.assertEqual(txs[0]["date"], "2025-01-02")
+        self.assertEqual(txs[0]["credit"], 100.0)
+        self.assertEqual(txs[0]["balance"], 267.10)
+        
+        self.assertEqual(txs[-1]["date"], "2025-01-31")
+        self.assertEqual(txs[-1]["debit"], 3.50)
+        self.assertEqual(txs[-1]["balance"], 130.84)
+        
+        # Validate reconciliation
+        reconciliation = local_extractor.reconcile_transactions(txs, 167.10)
+        self.assertTrue(reconciliation["reconciled"])
+        self.assertEqual(reconciliation["closing_balance"], 130.84)
+        self.assertEqual(round(reconciliation["total_withdrawals"], 2), 1207.77)
+        self.assertEqual(round(reconciliation["total_deposits"], 2), 1171.51)
 
 if __name__ == "__main__":
     unittest.main()

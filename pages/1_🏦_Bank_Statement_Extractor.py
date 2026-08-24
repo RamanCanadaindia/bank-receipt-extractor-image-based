@@ -258,6 +258,9 @@ if uploaded_files:
             text_pages = []
             is_digital = False
             
+            import importlib
+            import extract_statement
+            importlib.reload(extract_statement)
             if not force_ocr:
                 text_pages = extract_statement.extract_digital_text(u_file)
                 if text_pages:
@@ -269,6 +272,8 @@ if uploaded_files:
             
             if extraction_engine == "Local Python Engine (Private & Offline)":
                 import local_extractor
+                import importlib
+                importlib.reload(local_extractor)
                 if is_digital:
                     u_file.seek(0)
                     detected_bank = local_extractor.detect_bank(u_file)

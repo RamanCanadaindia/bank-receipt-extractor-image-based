@@ -118,72 +118,92 @@ def extract_digital_text(pdf_path):
 
 def parse_digital_text(text_pages):
     """
-    Simple parser for digital TD Bank statements.
-    Customize regex as needed for different statement types.
+    Parser for digital bank statements (TD, BMO, RBC, CIBC, etc.).
+    Supports full dates ('Jun 30, 2025') and abbreviated dates ('Jan 02') with statement year context.
     """
     transactions = []
-    print("Attempting to parse digital text using regex...")
+    print("Attempting to parse digital text...")
     
-    # Regex to capture standard TD statement rows:
-    # Date (e.g., Jun 30, 2025) Description Debit/Credit Balance
-    # Example: Jun 30, 2025 CIBC MC Y3X9Q5 568.72 $7,812.16
-    # Example: Jun 30, 2025 ACCT BAL REBATE 10.95 $7,812.16 (Credit has balance increase)
-    pattern = re.compile(
-        r"^([A-Z][a-z]{2})\s+(\d{1,2}),\s+(\d{4})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
-    )
-    
-    # Month abbreviation map to numbers
+    full_text = "\n".join(text_pages)
     months_map = {
         "Jan": "01", "Feb": "02", "Mar": "03", "Apr": "04", "May": "05", "Jun": "06",
-        "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12"
+        "Jul": "07", "Aug": "08", "Sep": "09", "Oct": "10", "Nov": "11", "Dec": "12",
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+        "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"
     }
+    
+    # Detect year from text
+    year_match = re.search(r'\b(20\d{2}|19\d{2})\b', full_text)
+    detected_year = year_match.group(1) if year_match else "2025"
+    
+    # Pattern 1: Date with Year (e.g. 'Jun 30, 2025 Description Amount1 Amount2 Balance')
+    pattern_full_date = re.compile(
+        r"^([A-Z][a-z]{2})\s+(\d{1,2}),\s+(\d{4})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
+    )
+    # Pattern 2: Date without Year (e.g. 'Jan 02 INTERAC e-Transfer Received 100.00 267.10')
+    pattern_short_date = re.compile(
+        r"^([A-Za-z]{3})\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
+    )
 
     for page_num, text in enumerate(text_pages, 1):
         lines = text.split("\n")
         for line in lines:
             line = line.strip()
-            match = pattern.match(line)
-            if match:
-                month_str, day_str, year_str, desc, amount1, amount2, balance_str = match.groups()
+            if not line:
+                continue
                 
-                # Format Date
-                month = months_map.get(month_str, "01")
+            m_full = pattern_full_date.match(line)
+            if m_full:
+                month_str, day_str, year_str, desc, amount1, amount2, balance_str = m_full.groups()
+                month = months_map.get(month_str.capitalize(), "01")
                 day = f"{int(day_str):02d}"
                 date = f"{year_str}-{month}-{day}"
-                
-                # Parse numeric values
-                bal_val = float(balance_str.replace("$", "").replace(",", ""))
-                
-                # Figure out debit vs credit
-                # If there are two amounts, amount1 is debit, amount2 is credit.
-                # If there is one amount: we'll check the context or descriptions.
-                # Usually, bank statements align them in separate columns.
-                # In digital text, spacing might collapse them.
-                val1 = float(amount1.replace(",", "")) if amount1 else None
-                val2 = float(amount2.replace(",", "")) if amount2 else None
-                
-                # Default heuristic for single values
-                debit = None
-                credit = None
-                if val1 is not None and val2 is not None:
-                    debit = val1
-                    credit = val2
-                elif val1 is not None:
-                    # If only one amount is present, check description or typical patterns
-                    # For TD statement, fees/mortgages are debits, rebates/deposits are credits.
-                    # Or we can inspect the alignment (not always possible in simple regex).
-                    # We will store it in a temporary list for balance validation to resolve.
+            else:
+                m_short = pattern_short_date.match(line)
+                if m_short:
+                    month_str, day_str, desc, amount1, amount2, balance_str = m_short.groups()
+                    if month_str.capitalize() not in months_map:
+                        continue
+                    month = months_map.get(month_str.capitalize(), "01")
+                    day = f"{int(day_str):02d}"
+                    date = f"{detected_year}-{month}-{day}"
+                else:
+                    continue
+
+            # Skip summary/opening/closing lines
+            desc_clean = desc.lower().strip()
+            if "opening balance" in desc_clean or "closing balance" in desc_clean or "closing totals" in desc_clean:
+                continue
+
+            bal_val = float(balance_str.replace("$", "").replace(",", "")) if balance_str else None
+            val1 = float(amount1.replace(",", "")) if amount1 else None
+            val2 = float(amount2.replace(",", "")) if amount2 else None
+            
+            debit = None
+            credit = None
+            if val1 is not None and val2 is not None:
+                debit = val1
+                credit = val2
+            elif val1 is not None:
+                is_known_credit = any(k in desc_clean for k in ("deposit", "received", "rebate", "refund", "payroll", "credit", "cr", "depot"))
+                if is_known_credit:
+                    credit = val1
+                    debit = None
+                else:
                     debit = val1
                     credit = None
+            elif bal_val is not None:
+                debit = None
+                credit = None
                 
-                transactions.append({
-                    "date": date,
-                    "description": desc.strip(),
-                    "debit": debit,
-                    "credit": credit,
-                    "balance": bal_val
-                })
-                
+            transactions.append({
+                "date": date,
+                "description": desc.strip(),
+                "debit": debit,
+                "credit": credit,
+                "balance": bal_val
+            })
+            
     return transactions
 
 def render_pdf_pages(pdf_path):
