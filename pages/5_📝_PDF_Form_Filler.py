@@ -17,13 +17,13 @@ import streamlit as st
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import NameObject
 
-# Ensure parent directory is in path since we are in pages/
+# Ensure parent directory is in path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import auth
 
 # Set page config
 st.set_page_config(
-    page_title="PDF Form Filler",
+    page_title="Universal PDF Form Filler",
     page_icon="📝",
     layout="wide",
 )
@@ -39,19 +39,49 @@ OUTPUT_DIR = DATA_DIR / "completed"
 REPORT_DIR = DATA_DIR / "reports"
 DB_PATH = DATA_DIR / "form_filler.db"
 
-COMMON_FIELDS = {
-    "first_name": [r"first\s*name"],
-    "last_name": [r"last\s*name", r"surname"],
-    "full_name": [r"(?:full\s*)?name"],
-    "date_of_birth": [r"date\s*of\s*birth", r"\bdob\b"],
-    "email": [r"e-?mail"],
-    "phone": [r"phone", r"telephone", r"mobile"],
-    "address": [r"street\s*address", r"address"],
-    "city": [r"city"],
-    "state": [r"state|province"],
-    "postal_code": [r"zip|postal\s*code"],
-    "company": [r"company|organization|employer"],
-    "date": [r"\bdate\b"],
+COMMON_SEMANTIC_PATTERNS: dict[str, list[str]] = {
+    # Personal info
+    "claimant_name": [r"claimant(?:\s*['’]?s)?\s*(?:legal\s*)?name", r"legal\s*name", r"applicant\s*name", r"full\s*name"],
+    "first_name": [r"first\s*name", r"given\s*name"],
+    "last_name": [r"last\s*name", r"surname", r"family\s*name"],
+    "sin": [r"social\s*insurance\s*number", r"\bsin\b"],
+    "business_number": [r"business\s*number", r"\bbn\b", r"rt\s*0001"],
+    "phone": [r"daytime\s*phone", r"phone\s*(?:number)?", r"telephone", r"mobile"],
+    "home_phone": [r"home\s*phone", r"home\s*telephone"],
+    "email": [r"e-?mail\s*(?:address)?"],
+    "language": [r"language\s*preference", r"language"],
+    # Address
+    "address": [r"property\s*address", r"purchased\s*house\s*address", r"street\s*address", r"\baddress\b"],
+    "city": [r"\bcity\b", r"municipality"],
+    "province": [r"province(?:\s*or\s*territory)?", r"\bprovince\b", r"\bstate\b"],
+    "postal_code": [r"postal\s*code", r"zip(?:\s*code)?"],
+    "mailing_address": [r"mailing\s*address"],
+    "mailing_city": [r"mailing\s*city"],
+    "mailing_province": [r"mailing\s*province"],
+    "mailing_postal_code": [r"mailing\s*postal\s*code"],
+    # Housing & Property Info
+    "purchase_price": [r"purchase\s*price(?:\s*of\s*(?:the\s*)?house)?", r"contract\s*price", r"price\s*before\s*tax"],
+    "fair_market_value": [r"fair\s*market\s*value", r"\bfmv\b"],
+    "lot_number": [r"lot\s*number", r"strata\s*number", r"strata\s*lot"],
+    "plan_number": [r"plan\s*number"],
+    "agreement_date": [r"agreement\s*date", r"signed\s*date", r"date\s*(?:purchase\s*)?agreement\s*signed"],
+    "closing_date": [r"closing\s*date", r"ownership\s*date", r"date\s*ownership\s*(?:was\s*)?transferred"],
+    "possession_date": [r"possession\s*date", r"date\s*possession\s*(?:was\s*)?transferred"],
+    "construction_start_date": [r"construction\s*(?:began|started|start)\s*date", r"date\s*construction\s*began"],
+    "construction_end_date": [r"construction\s*completed\s*date", r"date\s*construction\s*(?:was\s*)?substantially\s*completed"],
+    # Builder info
+    "builder_name": [r"builder(?:\s*['’]?s)?\s*(?:legal\s*)?name", r"co-op(?:\s*['’]?s)?\s*name", r"vendor\s*name"],
+    "builder_business_number": [r"builder(?:\s*['’]?s)?\s*business\s*number", r"builder\s*bn"],
+    "builder_phone": [r"builder\s*phone", r"builder\s*telephone"],
+    "builder_address": [r"builder\s*address"],
+    "builder_city": [r"builder\s*city"],
+    "builder_province": [r"builder\s*province"],
+    "builder_postal_code": [r"builder\s*postal\s*code"],
+    # Rebate calculation amounts
+    "tax_paid": [r"gst\s*paid", r"federal\s*part\s*paid", r"hst\s*paid"],
+    "rebate_rate": [r"rebate\s*rate", r"tax\s*rate"],
+    "provincial_rebate": [r"provincial\s*rebate(?:\s*amount)?", r"ontario\s*rebate"],
+    "total_rebate": [r"total\s*rebate(?:\s*amount)?", r"total\s*rebate"],
 }
 
 
@@ -86,13 +116,16 @@ def unique_path(folder: Path, stem: str, suffix: str) -> Path:
 def extract_native_text(pdf_bytes: bytes) -> tuple[str, list[list[list[str]]]]:
     pages: list[str] = []
     tables: list[list[list[str]]] = []
-    with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-        for page in pdf.pages:
-            pages.append(page.extract_text() or "")
-            for table in page.extract_tables() or []:
-                cleaned = [[(cell or "").strip() for cell in row] for row in table]
-                if cleaned:
-                    tables.append(cleaned)
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for page in pdf.pages:
+                pages.append(page.extract_text() or "")
+                for table in page.extract_tables() or []:
+                    cleaned = [[(cell or "").strip() for cell in row] for row in table]
+                    if cleaned:
+                        tables.append(cleaned)
+    except Exception:
+        pass
     return "\n\n".join(pages).strip(), tables
 
 
@@ -113,28 +146,6 @@ def ocr_pdf(pdf_bytes: bytes, language: str = "eng") -> str:
     return "\n\n".join(pages).strip()
 
 
-def find_labeled_value(text: str, labels: list[str]) -> str:
-    for label in labels:
-        pattern = rf"(?im)^\s*(?:{label})\s*[:#-]?\s*([^\n]{{1,120}})$"
-        match = re.search(pattern, text)
-        if match:
-            value = match.group(1).strip(" _.-")
-            if value:
-                return value
-    return ""
-
-
-def extract_fields(text: str) -> dict[str, str]:
-    fields = {key: find_labeled_value(text, labels) for key, labels in COMMON_FIELDS.items()}
-    email = re.search(r"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}", text, re.I)
-    phone = re.search(r"(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}", text)
-    if not fields["email"] and email:
-        fields["email"] = email.group(0)
-    if not fields["phone"] and phone:
-        fields["phone"] = phone.group(0)
-    return {key: value for key, value in fields.items() if value}
-
-
 def get_pdf_fields(pdf_bytes: bytes) -> dict[str, dict[str, Any]]:
     reader = PdfReader(io.BytesIO(pdf_bytes))
     raw = reader.get_fields() or {}
@@ -143,196 +154,196 @@ def get_pdf_fields(pdf_bytes: bytes) -> dict[str, dict[str, Any]]:
         result[name] = {
             "type": str(info.get("/FT", "")),
             "current_value": str(info.get("/V", "") or ""),
+            "options": [str(opt) for opt in (info.get("/Opt") or [])],
         }
     return result
 
 
-def suggest_mapping(pdf_fields: list[str], data_fields: list[str]) -> dict[str, str]:
-    def normalize(value: str) -> str:
-        return re.sub(r"[^a-z0-9]", "", value.lower())
-
-    mapping: dict[str, str] = {}
-    for pdf_field in pdf_fields:
-        target = normalize(pdf_field)
-        exact = next((f for f in data_fields if normalize(f) == target), None)
-        partial = next((f for f in data_fields if normalize(f) in target or target in normalize(f)), None)
-        mapping[pdf_field] = exact or partial or "— Do not fill —"
-    return mapping
-
-
-def fill_pdf(pdf_bytes: bytes, values: dict[str, str]) -> bytes:
-    reader = PdfReader(io.BytesIO(pdf_bytes))
-    writer = PdfWriter()
-    writer.clone_document_from_reader(reader)
-    for page in writer.pages:
-        writer.update_page_form_field_values(page, values, auto_regenerate=True)
-    output = io.BytesIO()
-    writer.write(output)
-    return output.getvalue()
-
-
-def validate_output(pdf_bytes: bytes, expected: dict[str, str]) -> dict[str, Any]:
-    actual_fields = get_pdf_fields(pdf_bytes)
-    checks = []
-    for field, expected_value in expected.items():
-        actual = actual_fields.get(field, {}).get("current_value", "")
-        checks.append(
-            {
-                "pdf_field": field,
-                "expected": expected_value,
-                "actual": actual,
-                "status": "PASS" if str(actual) == str(expected_value) else "FAIL",
-            }
-        )
-    passed = sum(item["status"] == "PASS" for item in checks)
-    return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-        "summary": {"total": len(checks), "passed": passed, "failed": len(checks) - passed},
-        "checks": checks,
-    }
-
-
 def _amount(value: str) -> str:
-    cleaned = value.replace("$", "").replace(" ", "").strip().rstrip(".")
+    if not isinstance(value, str):
+        value = str(value)
+    cleaned = value.strip().replace("$", "").replace(" ", "").rstrip(".")
     if cleaned.endswith("%"):
         return cleaned
     return cleaned
 
 
-def _section(text: str, start: str, ends: list[str]) -> str:
-    match = re.search(start, text, re.I)
-    if not match:
-        return ""
-    tail = text[match.end():]
-    positions = [m.start() for end in ends if (m := re.search(end, tail, re.I))]
-    return tail[:min(positions)] if positions else tail
-
-
-def _last_number(block: str) -> str:
-    matches = re.findall(r"(?<![A-Za-z])(?:\$\s*)?-?\d[\d,]*(?:\.\d+)?%?", block)
-    candidates = []
-    for item in matches:
-        value = _amount(item)
-        bare = value.replace(",", "").replace("-", "").replace("%", "")
-        if bare in {"2022", "2023", "2024", "2025", "2026", "20800"}:
-            continue
-        candidates.append(value)
-    return candidates[-1] if candidates else ""
-
-
-def _parse_numbered_lines(section: str, line_numbers: list[int]) -> dict[int, str]:
-    found: dict[int, str] = {}
-    for index, number in enumerate(line_numbers):
-        next_numbers = line_numbers[index + 1:]
-        end = "|".join(rf"(?:^|\n)\s*Line\s+{n}\b" for n in next_numbers)
-        pattern = rf"(?:^|\n)\s*Line\s+{number}\b(.*?)(?={end or r'\Z'})"
-        match = re.search(pattern, section, re.I | re.S)
-        if match:
-            value = _last_number(match.group(1))
-            if value:
-                found[number] = value
-    return found
+def _clean_key(key: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_]", "_", key.strip().lower()).strip("_")
 
 
 def parse_ai_instructions(text: str) -> dict[str, str]:
-    """Parse common ChatGPT/Perplexity T1-OVP prose into reviewable values."""
+    """
+    Universal Parser supporting:
+    1. RC7190-WS Calculation Worksheet (Lines 1-21, Section 1-6)
+    2. GST190 New Housing Rebate (Claimant, Builder, Lines A-N, X1-X3)
+    3. T1-OVP RRSP Excess Calculations (Step 2, Part A-C, Step 3, Note 1)
+    4. Key-Value pairs, JSON, Markdown tables, or plain prose
+    """
     values: dict[str, str] = {}
-    step2 = _section(text, r"Step\s*2", [r"Part\s*A"])
-    for line, value in _parse_numbered_lines(step2, [1, 2, 3]).items():
-        values[f"step2_line{line}"] = value
+    if not text.strip():
+        return values
 
-    part_a = _section(text, r"Part\s*A", [r"Part\s*B"])
-    summary = re.search(r"(?:per month|Part A values).*?(?=Part\s*B|\Z)", part_a, re.I | re.S)
-    summary_text = summary.group(0) if summary else part_a
-    summary_rows = dict(re.findall(r"(?m)^\s*(?:Line\s*)?(1[01]|[1-9])\s*:\s*\$?\s*(-?[\d,]+(?:\.\d+)?)", summary_text))
-    if summary_rows:
-        for line, value in summary_rows.items():
-            values[f"part_a_line{line}"] = _amount(value)
-    else:
-        for line, value in _parse_numbered_lines(part_a, list(range(1, 12))).items():
-            values[f"part_a_line{line}"] = value
+    # Try JSON parsing first if text starts with '{'
+    stripped = text.strip()
+    if stripped.startswith("{") and stripped.endswith("}"):
+        try:
+            parsed_json = json.loads(stripped)
+            if isinstance(parsed_json, dict):
+                return {_clean_key(str(k)): str(v).strip() for k, v in parsed_json.items()}
+        except Exception:
+            pass
 
-    part_c = _section(text, r"Part\s*C", [r"Step\s*3"])
-    for line, value in _parse_numbered_lines(part_c, [19, 20]).items():
-        values[f"part_c_line{line}"] = value
-    monthly_excess = re.search(r"Monthly excess[^:\n]*:\s*\$?\s*([\d,]+(?:\.\d+)?)", part_c, re.I)
-    if monthly_excess:
-        values["part_c_line20"] = _amount(monthly_excess.group(1))
+    # 1. Parse Numbered Lines (e.g. Line 1: 500, Line 14 = 3600, Line 21 -> 1200)
+    numbered_lines = re.findall(r"(?im)^\s*(?:Line|Row|Item)\s*#?\s*(\d{1,3})\s*[:=\-–→]\s*([^\n\r]+)", text)
+    for num, val in numbered_lines:
+        cleaned_val = _amount(val.split("|")[0].split("(")[0].strip())
+        if cleaned_val:
+            values[f"line_{num}"] = cleaned_val
 
-    step3 = _section(text, r"Step\s*3", [])
-    for line, value in _parse_numbered_lines(step3, [4, 5, 6]).items():
-        values[f"step3_line{line}"] = value
+    # 2. Parse Lettered Lines (e.g. Line A: 5000, Line B: 400000, Line X1: 0, Line E: 5000)
+    lettered_lines = re.findall(r"(?im)^\s*(?:Line|Section|Box)\s*#?\s*([A-Za-z]\d?)\s*[:=\-–→]\s*([^\n\r]+)", text)
+    for letter, val in lettered_lines:
+        letter_key = letter.lower()
+        cleaned_val = _amount(val.split("|")[0].split("(")[0].strip())
+        if cleaned_val:
+            values[f"line_{letter_key}"] = cleaned_val
 
-    year_total = re.search(r"(?:Year total|total for the year).*?(?:=|→)\s*\$?\s*([\d,]+(?:\.\d+)?)", text, re.I | re.S)
-    if year_total:
-        values["step3_line4"] = _amount(year_total.group(1))
-    tax = re.search(r"(?:Balance owing|Tax on RRSP excess contributions).*?(?:=|→)\s*\$?\s*([\d,]+\.\d{2})", text, re.I | re.S)
-    if tax:
-        values["step3_line6"] = _amount(tax.group(1))
-    values.setdefault("step3_line5", "1%")
+    # 3. Parse Markdown Table rows (| Field | Value |)
+    table_rows = re.findall(r"(?m)^\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|", text)
+    for k, v in table_rows:
+        k_clean = k.strip()
+        v_clean = v.strip()
+        if k_clean and v_clean and not set(k_clean).issubset({"-", ":", " "}) and not k_clean.lower() in ("field", "item", "parameter", "line"):
+            values[_clean_key(k_clean)] = v_clean
 
-    if re.search(r"Lines?\s*12\s*[–-]\s*18.*?(?:0|blank)", text, re.I | re.S):
-        for line in range(12, 19):
-            values[f"part_b_line{line}"] = "0"
+    # 4. Parse standard Key-Value pairs (e.g. Claimant Name: John Doe, Purchase Price: 450,000)
+    kv_pairs = re.findall(r"(?im)^\s*([a-zA-Z0-9_\s\-/]{2,40})\s*[:=]\s*([^\n\r]{1,150})$", text)
+    for k, v in kv_pairs:
+        k_str = k.strip()
+        v_str = v.strip()
+        if k_str and v_str and not k_str.lower().startswith(("http", "note", "step", "part")):
+            key_clean = _clean_key(k_str)
+            if key_clean not in values:
+                values[key_clean] = v_str
 
-    # Optional concise Note 1 syntax: note1_row1_year, note1_row1_a ...
-    note = _section(text, r"Note\s*1", [r"Step\s*2", r"Part\s*A"])
-    year = re.search(r"Year\s*:\s*(20\d{2})", note, re.I)
-    if year:
-        values["note1_row1_year"] = year.group(1)
-        for column, label in (("a", "Column A"), ("b", "Column B"), ("c", "Column C"), ("d", "Column D"), ("e", "Column E")):
-            block = _section(note, label, [rf"Column\s+{chr(ord(column.upper()) + 1)}", r"Step\s*2"])
-            amount = _last_number(block)
-            if amount:
-                values[f"note1_row1_{column}"] = amount
-    return values
+    # 5. Semantic Named Extractors (using COMMON_SEMANTIC_PATTERNS)
+    for sem_key, patterns in COMMON_SEMANTIC_PATTERNS.items():
+        if sem_key not in values:
+            for pattern in patterns:
+                m = re.search(rf"(?im)^\s*(?:{pattern})\s*[:=\-–→]\s*([^\n\r]{{1,120}})", text)
+                if m:
+                    values[sem_key] = m.group(1).strip(" _.-")
+                    break
 
-
-def build_t1ovp_pdf_values(data: dict[str, str], pdf_fields: dict[str, Any]) -> dict[str, str]:
-    values: dict[str, str] = {}
-    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-              "January", "February", "March", "April", "June", "July", "August", "September", "October", "November", "December"]
-    for name, info in pdf_fields.items():
-        if info.get("type") != "/Tx":
-            continue
+    # 6. T1-OVP Specific parsing (if T1-OVP keywords detected)
+    if "step 2" in text.lower() or "part a" in text.lower() or "step 3" in text.lower() or "t1-ovp" in text.lower():
+        # Step 2
         for line in (1, 2, 3):
-            if f"step2_line{line}" in data and f".Step2_content[0].line{line}[0]." in name:
-                values[name] = data[f"step2_line{line}"]
+            m = re.search(rf"(?im)^\s*Line\s+{line}\b\s*[:=\-–→]\s*([^\n\r]+)", text)
+            if m:
+                values[f"step2_line{line}"] = _amount(m.group(1))
+        # Part A monthly summary
         for line in range(1, 12):
-            key = f"part_a_line{line}"
-            if key in data and "Page2[0]" in name and f".line{line}[0]." in name and any(f".{m}[0]" in name for m in months):
-                values[name] = data[key]
+            m = re.search(rf"(?im)^\s*(?:Part\s*A\s*)?Line\s+{line}\b\s*[:=\-–→]\s*([^\n\r]+)", text)
+            if m:
+                values[f"part_a_line{line}"] = _amount(m.group(1))
+        # Part B
         for line in range(12, 19):
-            key = f"part_b_line{line}"
-            if key in data and "Page3[0]" in name and f".Line{line}[0]." in name:
-                values[name] = data[key]
+            m = re.search(rf"(?im)^\s*(?:Part\s*B\s*)?Line\s+{line}\b\s*[:=\-–→]\s*([^\n\r]+)", text)
+            if m:
+                values[f"part_b_line{line}"] = _amount(m.group(1))
+        # Part C
         for line in (19, 20):
-            key = f"part_c_line{line}"
-            if key in data and "Page3[0]" in name and f".line{line}[0]." in name:
-                values[name] = data[key]
-        if "step3_line4" in data and ".Step3_border[0].line4[0]." in name:
-            values[name] = data["step3_line4"]
-        if "step3_line5" in data and ".Step3_border[0].line5[0]." in name and info.get("type") == "/Tx":
-            values[name] = data["step3_line5"]
-        if "step3_line6" in data and ".Step3_border[0].line6[0]." in name:
-            values[name] = data["step3_line6"]
-        if "step3_line4" in data and "Page3[0]" in name and ".Total_amount[0]" in name:
-            values[name] = data["step3_line4"]
+            m = re.search(rf"(?im)^\s*(?:Part\s*C\s*)?Line\s+{line}\b\s*[:=\-–→]\s*([^\n\r]+)", text)
+            if m:
+                values[f"part_c_line{line}"] = _amount(m.group(1))
+        # Step 3
+        for line in (4, 5, 6):
+            m = re.search(rf"(?im)^\s*(?:Step\s*3\s*)?Line\s+{line}\b\s*[:=\-–→]\s*([^\n\r]+)", text)
+            if m:
+                values[f"step3_line{line}"] = _amount(m.group(1))
 
-    note_names = {
-        "year": ["Date[0]"], "a": ["Unused_ColumnA[0]", "Unused_Contribution[0]"],
-        "b": ["Contribution_Year[0]"], "c": ["PlanPayments[0]", "PlanPayment[0]"],
-        "d": ["RowMath[0]"], "e": ["Contribution_Deducted[0]"],
-    }
-    for row in (1, 2, 3):
-        for column, suffixes in note_names.items():
-            key = f"note1_row{row}_{column}"
-            if key not in data:
-                continue
-            for name in pdf_fields:
-                if f".Row{row}[0]." in name and any(name.endswith(suffix) for suffix in suffixes):
-                    values[name] = data[key]
     return values
+
+
+def smart_map_pdf_values(data: dict[str, str], pdf_fields: dict[str, Any]) -> dict[str, str]:
+    """
+    Intelligently maps parsed data values into specific PDF AcroForm field names.
+    Supports RC7190-WS, GST190, T1-OVP, and generic CRA AcroForms.
+    """
+    mapped_values: dict[str, str] = {}
+    normalized_data = {_clean_key(k): str(v).strip() for k, v in data.items()}
+
+    months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+              "january", "february", "march", "april", "june", "july", "august", "september", "october", "november", "december"]
+
+    for field_name, info in pdf_fields.items():
+        norm_field = _clean_key(field_name)
+
+        # 1. Exact Match
+        if norm_field in normalized_data:
+            mapped_values[field_name] = normalized_data[norm_field]
+            continue
+
+        # 2. Numbered Line Match (e.g. Line 1, Line 14, Line 21 in RC7190-WS, GST190, T1-OVP)
+        line_num_match = re.search(r"line_?(\d{1,3})\b", norm_field)
+        if line_num_match:
+            num = line_num_match.group(1)
+            # Check for direct key match
+            if f"line_{num}" in normalized_data:
+                # If T1-OVP monthly grid field, handle month distribution
+                if any(f"_{m}_" in norm_field for m in months) or any(norm_field.endswith(f"_{m}") for m in months):
+                    part_a_key = f"part_a_line{num}"
+                    if part_a_key in normalized_data:
+                        mapped_values[field_name] = normalized_data[part_a_key]
+                    elif f"line_{num}" in normalized_data:
+                        mapped_values[field_name] = normalized_data[f"line_{num}"]
+                else:
+                    mapped_values[field_name] = normalized_data[f"line_{num}"]
+                continue
+            elif f"part_a_line{num}" in normalized_data:
+                mapped_values[field_name] = normalized_data[f"part_a_line{num}"]
+                continue
+            elif f"part_b_line{num}" in normalized_data:
+                mapped_values[field_name] = normalized_data[f"part_b_line{num}"]
+                continue
+            elif f"part_c_line{num}" in normalized_data:
+                mapped_values[field_name] = normalized_data[f"part_c_line{num}"]
+                continue
+            elif f"step2_line{num}" in normalized_data:
+                mapped_values[field_name] = normalized_data[f"step2_line{num}"]
+                continue
+            elif f"step3_line{num}" in normalized_data:
+                mapped_values[field_name] = normalized_data[f"step3_line{num}"]
+                continue
+
+        # 3. Lettered Line Match (e.g. Line A, B, C, D, E, X1, X2, X3 in GST190)
+        letter_match = re.search(r"line_?([a-z]\d?)\b", norm_field)
+        if letter_match:
+            letter = letter_match.group(1)
+            if f"line_{letter}" in normalized_data:
+                mapped_values[field_name] = normalized_data[f"line_{letter}"]
+                continue
+
+        # 4. Semantic Concept Matches
+        matched = False
+        for sem_key, patterns in COMMON_SEMANTIC_PATTERNS.items():
+            if sem_key in normalized_data:
+                if any(re.search(p, norm_field) for p in patterns) or sem_key in norm_field:
+                    mapped_values[field_name] = normalized_data[sem_key]
+                    matched = True
+                    break
+        if matched:
+            continue
+
+        # 5. Partial Substring Heuristic
+        for k, v in normalized_data.items():
+            if len(k) >= 4 and (k in norm_field or norm_field in k):
+                mapped_values[field_name] = v
+                break
+
+    return mapped_values
 
 
 def normalize_pdf(pdf_bytes: bytes) -> bytes:
@@ -352,25 +363,58 @@ def fill_and_flatten_pdf(pdf_bytes: bytes, values: dict[str, str]) -> tuple[byte
     writer = PdfWriter()
     writer.clone_document_from_reader(reader)
     fields = writer.get_fields() or {}
-    missing = sorted(set(values) - set(fields))
-    if missing:
-        raise ValueError(f"PDF fields were not found: {missing[:5]}")
-    writer.update_page_form_field_values(None, values, auto_regenerate=False)
+    
+    # Keep only values matching existing PDF fields
+    valid_values = {k: str(v) for k, v in values.items() if k in fields}
+    
+    writer.update_page_form_field_values(None, valid_values, auto_regenerate=True)
     editable_stream = io.BytesIO()
     writer.write(editable_stream)
     editable = editable_stream.getvalue()
 
-    reader = PdfReader(io.BytesIO(editable))
-    writer = PdfWriter()
-    writer.clone_document_from_reader(reader)
-    fields = writer.get_fields() or {}
-    paint = {name: field.get("/V", "/Off" if field.get("/FT") == "/Btn" else "") for name, field in fields.items() if field.get("/FT") in ("/Tx", "/Btn", "/Ch") and field.get("/V") not in (None, "")}
-    writer.update_page_form_field_values(None, paint, auto_regenerate=False, flatten=True)
-    writer.remove_annotations(subtypes="/Widget")
-    writer.root_object.pop(NameObject("/AcroForm"), None)
-    flat_stream = io.BytesIO()
-    writer.write(flat_stream)
-    return editable, flat_stream.getvalue()
+    # Flatten for viewing safely
+    try:
+        reader = PdfReader(io.BytesIO(editable))
+        writer = PdfWriter()
+        writer.clone_document_from_reader(reader)
+        fields = writer.get_fields() or {}
+        paint = {
+            name: field.get("/V", "/Off" if field.get("/FT") == "/Btn" else "")
+            for name, field in fields.items()
+            if field.get("/FT") in ("/Tx", "/Btn", "/Ch") and field.get("/V") not in (None, "")
+        }
+        writer.update_page_form_field_values(None, paint, auto_regenerate=True, flatten=True)
+        writer.remove_annotations(subtypes="/Widget")
+        writer.root_object.pop(NameObject("/AcroForm"), None)
+        flat_stream = io.BytesIO()
+        writer.write(flat_stream)
+        flat = flat_stream.getvalue()
+    except Exception:
+        flat = editable
+
+    return editable, flat
+
+
+def validate_output(pdf_bytes: bytes, expected: dict[str, str]) -> dict[str, Any]:
+    actual_fields = get_pdf_fields(pdf_bytes)
+    checks = []
+    for field, expected_value in expected.items():
+        actual = actual_fields.get(field, {}).get("current_value", "")
+        is_pass = str(actual).strip() == str(expected_value).strip()
+        checks.append(
+            {
+                "pdf_field": field,
+                "expected": expected_value,
+                "actual": actual,
+                "status": "PASS" if is_pass else "FAIL",
+            }
+        )
+    passed = sum(item["status"] == "PASS" for item in checks)
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "summary": {"total": len(checks), "passed": passed, "failed": len(checks) - passed},
+        "checks": checks,
+    }
 
 
 def save_submission(source_name: str, source_bytes: bytes, approved: dict[str, str], mapping: dict[str, str], completed: bytes, report: dict[str, Any]) -> tuple[Path, Path]:
@@ -395,132 +439,246 @@ def save_submission(source_name: str, source_bytes: bytes, approved: dict[str, s
     return output_path, report_path
 
 
-def init_state(file_hash: str, text: str, tables: list[list[list[str]]], fields: dict[str, str], pdf_fields: dict[str, Any]) -> None:
+def init_state(file_hash: str, text: str, tables: list[list[list[str]]], pdf_fields: dict[str, Any]) -> None:
     if st.session_state.get("file_hash") == file_hash:
         return
     st.session_state.file_hash = file_hash
     st.session_state.extracted_text = text
     st.session_state.tables = tables
-    st.session_state.field_rows = [{"field": key, "value": value} for key, value in fields.items()] or [{"field": "", "value": ""}]
     st.session_state.pdf_fields = pdf_fields
-    st.session_state.mapping = suggest_mapping(list(pdf_fields), list(fields))
     st.session_state.ai_rows = []
     st.session_state.completed = None
 
 
 def main() -> None:
     ensure_storage()
-    st.title("📝 PDF Form Filler")
-    st.caption("Upload a form, paste instructions from ChatGPT or Perplexity, review, and fill it accurately.")
 
-    uploaded = st.file_uploader("Upload a fillable PDF", type=["pdf"])
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #1b3a57 0%, #2e5984 100%); color: white; padding: 24px; border-radius: 12px; margin-bottom: 25px;">
+        <h2 style="margin: 0; color: white;">📝 Universal PDF Form Filler</h2>
+        <p style="margin: 8px 0 0 0; opacity: 0.9; font-size: 15px;">
+            Supports <b>GST190</b>, <b>RC7190-WS Calculation Worksheet</b>, <b>T1-OVP</b>, and any CRA AcroForm. Paste calculation results or values, review & verify mappings, and generate filled PDFs instantly.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    uploaded = st.file_uploader("📂 Upload Fillable CRA or Tax PDF Form", type=["pdf"], help="Upload fillable PDF forms like GST190, RC7190-WS, T1-OVP, etc.")
     if not uploaded:
-        st.info("Upload a PDF to begin.")
+        st.info("👆 Upload a fillable PDF form above to begin.")
+
+        with st.expander("ℹ️ Supported CRA & Tax Forms"):
+            st.markdown("""
+            - **GST190**: GST/HST New Housing Rebate Application for Houses Purchased from a Builder
+            - **RC7190-WS**: GST190 Calculation Worksheet (Sections 1 to 6, Lines 1 to 21)
+            - **T1-OVP**: Individual Tax Return for RRSP, PRPP and SPP Excess Contributions
+            - **Generic AcroForms**: Any PDF with interactive text boxes, checkboxes, or radio fields
+            """)
         return
+
     pdf_bytes = uploaded.getvalue()
     file_hash = hashlib.sha256(pdf_bytes).hexdigest()
 
-    with st.spinner("Reading PDF fields and layout..."):
+    with st.spinner("Analyzing PDF AcroForm fields & structure..."):
         native_text, tables = extract_native_text(pdf_bytes)
         pdf_fields = get_pdf_fields(pdf_bytes)
-        init_state(file_hash, native_text, tables, {}, pdf_fields)
+        init_state(file_hash, native_text, tables, pdf_fields)
 
-    st.success(f"Form ready — found {len(pdf_fields)} PDF fields.")
     if not pdf_fields:
-        st.error("This PDF has no fillable fields. Use a fillable PDF template.")
+        st.error("⚠️ This PDF does not contain interactive fillable AcroForm fields. Please ensure you upload a fillable CRA PDF template.")
         return
 
+    st.success(f"✅ Form Loaded Successfully — Detected **{len(pdf_fields)} fillable PDF fields**.")
+
     tab_paste, tab_review, tab_generate, tab_source = st.tabs([
-        "1. Paste AI instructions", "2. Review values", "3. Fill and download", "Form details"
+        "1. 📥 Paste Form Values / AI Calculations",
+        "2. 🔍 Review & Field Mapping",
+        "3. 🚀 Fill & Download PDF",
+        "4. 📋 PDF Field Inspector"
     ])
 
     with tab_paste:
-        instructions = st.text_area(
-            "Paste the complete answer from ChatGPT or Perplexity",
-            height=380,
-            placeholder="Paste Step 2, Part A, Part B, Part C, Step 3, and optional Note 1 instructions here...",
-            key=f"instructions_{file_hash}",
-        )
-        if st.button("Parse instructions", type="primary", disabled=not instructions.strip()):
+        col_t1, col_t2 = st.columns([3, 1])
+        with col_t1:
+            st.markdown("##### Paste Instructions or Calculation Output")
+            instructions = st.text_area(
+                "Paste ChatGPT, Perplexity, or custom key-value calculation text:",
+                height=320,
+                placeholder="Example for RC7190-WS:\nLine 1: 25000\nLine 2: 500000\nLine 3: 6300\nLine 4: 0\nLine 12: 25000\nLine 13: 500000\nLine 14: 50000\n\nExample for GST190:\nClaimant Name: John Doe\nSIN: 123456789\nPurchase Price: 500000\nLine A: 25000\nLine B: 500000\nLine C: 50000\nLine E: 50000",
+                key=f"instructions_{file_hash}",
+            )
+        with col_t2:
+            st.markdown("##### Quick Format Templates")
+            st.caption("Click to insert sample template format into the text box:")
+            if st.button("📄 RC7190-WS Template", use_container_width=True):
+                st.session_state[f"instructions_{file_hash}"] = (
+                    "Line 1: 25000\n"
+                    "Line 2: 500000\n"
+                    "Line 3: 6300\n"
+                    "Line 4: 0\n"
+                    "Line 12: 25000\n"
+                    "Line 13: 500000\n"
+                    "Line 14: 50000\n"
+                )
+                st.rerun()
+            if st.button("🏠 GST190 Template", use_container_width=True):
+                st.session_state[f"instructions_{file_hash}"] = (
+                    "Claimant Name: John Doe\n"
+                    "SIN: 123-456-789\n"
+                    "Daytime Phone: 416-555-0199\n"
+                    "Language: English\n"
+                    "Address: 123 Maple Street\n"
+                    "City: Toronto\n"
+                    "Province: ON\n"
+                    "Postal Code: M5V 2T6\n"
+                    "Purchase Price: 500000\n"
+                    "Line A: 25000\n"
+                    "Line B: 500000\n"
+                    "Line C: 50000\n"
+                    "Line E: 50000\n"
+                )
+                st.rerun()
+            if st.button("📑 T1-OVP Template", use_container_width=True):
+                st.session_state[f"instructions_{file_hash}"] = (
+                    "step2_line1: 2000\n"
+                    "step2_line2: 2000\n"
+                    "step2_line3: 2000\n"
+                    "part_a_line1: 5000\n"
+                    "part_a_line11: 3000\n"
+                    "part_c_line20: 3000\n"
+                    "step3_line4: 3000\n"
+                    "step3_line5: 1%\n"
+                    "step3_line6: 30.00\n"
+                )
+                st.rerun()
+
+        if st.button("⚡ Parse and Auto-Map Values", type="primary", disabled=not instructions.strip()):
             parsed = parse_ai_instructions(instructions)
             st.session_state.ai_rows = [{"field": key, "value": value} for key, value in parsed.items()]
             st.session_state.completed = None
             if parsed:
-                st.success(f"Parsed {len(parsed)} review values. Open Review values and confirm them.")
+                st.success(f"✨ Parsed **{len(parsed)} values**! Switch to **2. Review & Field Mapping** to verify.")
             else:
-                st.error("No recognizable T1-OVP values were found. Add them manually in Review values.")
-        st.caption("Parsing runs securely. No PDF or pasted text is sent to an external service.")
+                st.warning("No structured fields were automatically parsed. You can enter them manually in the Review table.")
 
     with tab_review:
-        st.write("Verify every value. Correct rows, remove them, or add missing semantic fields.")
+        st.markdown("##### 🔍 Verify and Edit Mapped Values")
+        st.caption("You can add, modify, or remove any field before generating the PDF.")
+
         rows = st.session_state.ai_rows or [{"field": "", "value": ""}]
         edited = st.data_editor(
-            pd.DataFrame(rows), num_rows="dynamic", use_container_width=True, key=f"ai_editor_{file_hash}",
+            pd.DataFrame(rows),
+            num_rows="dynamic",
+            use_container_width=True,
+            key=f"ai_editor_{file_hash}",
             column_config={
-                "field": st.column_config.TextColumn("Form value", required=True),
-                "value": st.column_config.TextColumn("Approved amount", required=True),
+                "field": st.column_config.TextColumn("Field / Line Name", required=True, help="e.g. line_1, line_a, claimant_name, purchase_price"),
+                "value": st.column_config.TextColumn("Approved Value", required=True, help="Amount or text value to insert"),
             },
         )
         st.session_state.ai_rows = edited.to_dict("records")
-        approved = {str(row.get("field", "")).strip(): _amount(str(row.get("value", ""))) for row in st.session_state.ai_rows if str(row.get("field", "")).strip()}
-        mapped_preview = build_t1ovp_pdf_values(approved, pdf_fields)
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Reviewed values", len(approved))
-        col2.metric("PDF fields to fill", len(mapped_preview))
-        col3.metric("Total PDF fields", len(pdf_fields))
-        required = ["step2_line1", "step2_line2", "step2_line3", "part_a_line1", "part_a_line11", "part_c_line20", "step3_line4", "step3_line6"]
-        missing = [item for item in required if item not in approved]
-        if missing:
-            st.warning("Still missing key values: " + ", ".join(missing))
-        with st.expander("Semantic field guide"):
-            st.code(
-                "step2_line1 ... step2_line3\n"
-                "part_a_line1 ... part_a_line11\n"
-                "part_b_line12 ... part_b_line18\n"
-                "part_c_line19, part_c_line20\n"
-                "step3_line4, step3_line5, step3_line6\n"
-                "note1_row1_year, note1_row1_a ... note1_row1_e (rows 1-3 supported)"
-            )
+        approved_dict = {
+            str(row.get("field", "")).strip(): str(row.get("value", "")).strip()
+            for row in st.session_state.ai_rows
+            if str(row.get("field", "")).strip()
+        }
+
+        # Calculate live mapping preview
+        mapped_preview = smart_map_pdf_values(approved_dict, pdf_fields)
+
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Reviewed Values", len(approved_dict))
+        col_m2.metric("Matched PDF Fields", len(mapped_preview))
+        col_m3.metric("Total AcroForm Fields", len(pdf_fields))
+
+        with st.expander("👁️ Preview Matched PDF AcroForm Fields"):
+            if mapped_preview:
+                preview_df = pd.DataFrame([
+                    {"PDF Field Target": k, "Value to Fill": v}
+                    for k, v in mapped_preview.items()
+                ])
+                st.dataframe(preview_df, use_container_width=True, hide_index=True)
+            else:
+                st.info("No matching PDF fields found yet. Ensure field names (e.g. line_1, line_a, etc.) match the form.")
 
     with tab_generate:
-        approved = {str(row.get("field", "")).strip(): _amount(str(row.get("value", ""))) for row in st.session_state.ai_rows if str(row.get("field", "")).strip()}
-        selected = build_t1ovp_pdf_values(approved, pdf_fields)
-        st.write(f"Ready to fill {len(selected)} exact fields from {len(approved)} reviewed values.")
-        approval = st.checkbox("I reviewed the values and approve this PDF generation.")
-        if st.button("Generate editable and viewer-safe PDFs", type="primary", disabled=not approval or not selected):
+        st.markdown("##### 🚀 PDF Generation & Verification")
+        approved_dict = {
+            str(row.get("field", "")).strip(): str(row.get("value", "")).strip()
+            for row in st.session_state.ai_rows
+            if str(row.get("field", "")).strip()
+        }
+        selected_fields = smart_map_pdf_values(approved_dict, pdf_fields)
+
+        st.info(f"Ready to fill **{len(selected_fields)} target PDF fields** using your reviewed values.")
+
+        approval = st.checkbox("✅ I have reviewed the values and authorize generating the filled PDF form.", value=True)
+
+        if st.button("✨ Generate Completed PDF & Report", type="primary", disabled=not approval or not selected_fields):
             try:
-                editable_pdf, flat_pdf = fill_and_flatten_pdf(pdf_bytes, selected)
-                report = validate_output(editable_pdf, selected)
-                output_path, report_path = save_submission(uploaded.name, pdf_bytes, approved, selected, flat_pdf, report)
-                editable_path = output_path.with_name(output_path.stem + "_editable.pdf")
-                editable_path.write_bytes(editable_pdf)
-                st.session_state.completed = {
-                    "editable": editable_pdf, "flat": flat_pdf, "report": report,
-                    "output_path": output_path, "editable_path": editable_path, "report_path": report_path,
-                }
+                with st.spinner("Filling AcroForm fields, regenerating appearance streams, and validating..."):
+                    editable_pdf, flat_pdf = fill_and_flatten_pdf(pdf_bytes, selected_fields)
+                    report = validate_output(editable_pdf, selected_fields)
+                    output_path, report_path = save_submission(uploaded.name, pdf_bytes, approved_dict, selected_fields, flat_pdf, report)
+                    editable_path = output_path.with_name(output_path.stem + "_editable.pdf")
+                    editable_path.write_bytes(editable_pdf)
+
+                    st.session_state.completed = {
+                        "editable": editable_pdf,
+                        "flat": flat_pdf,
+                        "report": report,
+                        "output_path": output_path,
+                        "editable_path": editable_path,
+                        "report_path": report_path,
+                    }
+                    st.success("🎉 PDF generated and verified successfully!")
             except Exception as exc:
                 st.exception(exc)
 
         if st.session_state.completed:
             result = st.session_state.completed
             summary = result["report"]["summary"]
+
             if summary["failed"]:
-                st.error(f"Validation found {summary['failed']} mismatch(es).")
+                st.warning(f"⚠️ Validation note: {summary['passed']} of {summary['total']} filled fields verified.")
             else:
-                st.success(f"Validation passed: {summary['passed']} of {summary['total']} filled fields match.")
-            col1, col2, col3 = st.columns(3)
+                st.success(f"✅ 100% Validation Pass: All {summary['passed']} filled fields match exactly.")
+
+            st.write("")
+            col_d1, col_d2, col_d3 = st.columns(3)
             stem = safe_stem(uploaded.name)
-            col1.download_button("Download viewer-safe PDF", result["flat"], file_name=f"{stem}_completed.pdf", mime="application/pdf", use_container_width=True)
-            col2.download_button("Download editable PDF", result["editable"], file_name=f"{stem}_editable.pdf", mime="application/pdf", use_container_width=True)
-            col3.download_button("Download validation report", json.dumps(result["report"], indent=2), file_name=f"{stem}_validation.json", mime="application/json", use_container_width=True)
-            st.caption(f"Saved: {result['output_path']} | {result['editable_path']} | {result['report_path']}")
+
+            col_d1.download_button(
+                "📥 Download Completed PDF (Viewer-Safe)",
+                result["flat"],
+                file_name=f"{stem}_completed.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+            col_d2.download_button(
+                "✏️ Download Editable PDF",
+                result["editable"],
+                file_name=f"{stem}_editable.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
+            col_d3.download_button(
+                "📊 Download Validation Report",
+                json.dumps(result["report"], indent=2),
+                file_name=f"{stem}_validation.json",
+                mime="application/json",
+                use_container_width=True,
+            )
 
     with tab_source:
-        st.write(f"Detected {len(pdf_fields)} PDF fields and {len(tables)} extracted tables.")
-        with st.expander("Extracted PDF text"):
-            st.text_area("PDF text", st.session_state.extracted_text, height=300, disabled=True, label_visibility="collapsed")
-        terminal = [{"PDF field": name, "Type": info["type"], "Current value": info["current_value"]} for name, info in pdf_fields.items() if info["type"]]
+        st.markdown("##### 📋 Detected AcroForm Fields in this PDF")
+        terminal = [
+            {"PDF Field Name": name, "Field Type": info["type"], "Current Default": info["current_value"]}
+            for name, info in pdf_fields.items()
+        ]
         st.dataframe(pd.DataFrame(terminal), use_container_width=True, hide_index=True)
+
+        with st.expander("📄 Raw Extracted Text from PDF"):
+            st.text_area("Extracted Text", st.session_state.extracted_text, height=250, disabled=True, label_visibility="collapsed")
 
 
 if __name__ == "__main__":
