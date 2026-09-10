@@ -143,6 +143,23 @@ with row2_col2:
     """, unsafe_allow_html=True)
 
 st.write("")
+
+row3_col1, _ = st.columns(2)
+
+with row3_col1:
+    st.markdown("""
+    <div class="tool-card">
+        <div class="tool-icon">📝</div>
+        <div class="tool-name">PDF Form Filler</div>
+        <div class="tool-desc">
+            Upload fillable PDF tax and CRA forms (such as T1-OVP), paste AI instructions or calculation prose, 
+            review and correct mapped fields in real-time, and generate viewer-safe & editable filled PDFs with validation reports.
+        </div>
+        <div class="nav-instruction">👈 Select "5 📝 PDF Form Filler" in the sidebar</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.write("")
 st.write("")
 
 # General Info
