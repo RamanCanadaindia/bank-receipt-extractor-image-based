@@ -10,3 +10,4 @@ receipts_wave_import.xlsx
 *.xlsx
 .env
 keys.json
+tmp/

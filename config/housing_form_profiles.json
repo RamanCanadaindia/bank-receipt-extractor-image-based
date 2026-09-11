@@ -1,0 +1,622 @@
+{
+  "gst190": {
+    "form1[0].Page2[0].Page2B[0].PartA[0].ClaimantName[0].NameField[0]": [
+      "/Tx",
+      "Part A. Claimant information. Claimant's legal name. Last name, first name, and initials. Enter one name only, even if several individuals bought the house."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].BusinessNumber[0].BusinessNumber[0].BusinessNumber_RT1[0]": [
+      "/Tx",
+      "Part A. Claimant information. First 9 digits of the claimant's business number, if applicable."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].BusinessNumber[0].BusinessNumber[0].BusinessNumber_RT[0]": [
+      "/Tx",
+      " "
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].BusinessNumber[0].BusinessNumber[0].BusinessNumber_RT2[0]": [
+      "/Tx",
+      "Part A. Claimant information. Last 4 digits of the claimant's business number, if applicable."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].SIN[0].SIN_Comb[0]": [
+      "/Tx",
+      "Part A. Claimant information. Claimant's social insurance number. 9 digits."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].DayPhoneNumber[0].DaytimePhoneNumber[0]": [
+      "/Tx",
+      "Part A. Claimant information. Daytime telephone number. 10 digits."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].DayPhoneNumber[0].Phone_Ext[0]": [
+      "/Tx",
+      "Part A. Claimant information. Extension. Maximum 8 digits."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].HomePhoneNumber[0]": [
+      "/Tx",
+      "Part A. Claimant information. Home telephone number. 10 digits."
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].LanguagePref[0].RadioButtonList1[0]": [
+      "/Btn",
+      "RadioButtonList1"
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].claim_fthb[0].fthb_question[0].FTHB_Buttons[0]": [
+      "/Btn",
+      "FTHB_Buttons"
+    ],
+    "form1[0].Page2[0].Page2B[0].PartA[0].Claim_enhr[0].ENH_claiming[0].RadioButtonList2[0]": [
+      "/Btn",
+      "RadioButtonList2"
+    ],
+    "form1[0].Page3[0].PartA[0].Claimant_consent[0].Consent1[0].RadioButtonList2[0]": [
+      "/Btn",
+      "RadioButtonList2"
+    ],
+    "form1[0].Page3[0].PartA[0].Claimant_consent[0].Consent2[0].RadioButtonList2[0]": [
+      "/Btn",
+      "RadioButtonList2"
+    ],
+    "form1[0].Page3[0].PartA[0].Other[0].OtherPurchaser1[0].NameField[0]": [
+      "/Tx",
+      "Part A. Claimant information. Other purchaser information. Last name, first name, and initials of the other purchaser. Instance 1."
+    ],
+    "form1[0].Page3[0].PartA[0].Other[0].OtherPurchaser2[0].NameField[0]": [
+      "/Tx",
+      "Part A. Claimant information. Other purchaser information. Last name, first name, and initials of the other purchaser. Instance 2."
+    ],
+    "form1[0].Page3[0].PartA[0].Address[0].PhysicalAddress[0]": [
+      "/Tx",
+      "Part A. Claimant information. Address of the house you purchased. Unit number, street number, street name, rural route."
+    ],
+    "form1[0].Page3[0].PartA[0].Address[0].City[0]": [
+      "/Tx",
+      "Part A. Claimant information. Address of the house you purchased. City."
+    ],
+    "form1[0].Page3[0].PartA[0].Address[0].Province[0]": [
+      "/Ch",
+      "Part A. Claimant information. Address of the house you purchased. Select the province or territory from the drop down menu. If not listed, type it in manually."
+    ],
+    "form1[0].Page3[0].PartA[0].Address[0].PostalCode[0]": [
+      "/Tx",
+      "Part A. Claimant information. Address of the house you purchased. Postal code. 6 characters."
+    ],
+    "form1[0].Page3[0].PartA[0].Mailing[0].BusinessAddress[0]": [
+      "/Tx",
+      "Part A. Claimant information. Mailing address of claimant, if different from purchased house address. Unit number, street number, street name, rural route."
+    ],
+    "form1[0].Page3[0].PartA[0].Mailing[0].City[0]": [
+      "/Tx",
+      "Part A. Claimant information. Mailing address of claimant, if different from purchased house address. City."
+    ],
+    "form1[0].Page3[0].PartA[0].Mailing[0].ProvState_DropDown[0]": [
+      "/Ch",
+      "Part A. Claimant information. Mailing address of claimant, if different from purchased house address. Select the province, territory, or state from the drop down menu. If not listed, type it in manually."
+    ],
+    "form1[0].Page3[0].PartA[0].Mailing[0].PostalCode_ZIP[0]": [
+      "/Tx",
+      "Part A. Claimant information. Mailing address of claimant, if different from purchased house address. Postal or ZIP code. Postal code, 6 characters or ZIP code, 5 or 9 digits. "
+    ],
+    "form1[0].Page3[0].PartA[0].Mailing[0].Country[0]": [
+      "/Tx",
+      "Part A. Claimant information. Mailing address of claimant, if different from purchased house address. Country."
+    ],
+    "form1[0].Page4[0].PartB[0].NHRMainResidence_Yes_No[0].RadioButtonList2[0]": [
+      "/Btn",
+      "RadioButtonList2"
+    ],
+    "form1[0].Page4[0].PartB[0].FTHBMainResidence_Yes_No[0].RadioButtonList2[0]": [
+      "/Btn",
+      "RadioButtonList2"
+    ],
+    "form1[0].Page4[0].PartB[0].PurchaseDate[0].PurchaseAgreementDate[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part B. House information. Date that you and the builder, or co-op if applicable, signed the purchase agreement. If the agreement was signed on different dates, use the later date. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page4[0].PartB[0].TransferDate[0].OwnershipDate[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part B. House information. Date ownership of the house or the share in the co-op was transferred to you. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page4[0].PartB[0].PossessionDate[0].PossessionDate[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part B. House information. Date possession of the house was transferred to you. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page4[0].PartB[0].ConstructionDate[0].ConstructionDate[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part B. House information. If you are claiming the FTHB GST/HST rebate, the Ontario FTHB rebate or the Ontario ENHR, enter the date the construction of the house began. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page4[0].PartB[0].CompletionDate[0].CompletionDate[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part B. House information. If you are claiming the FTHB GST/HST rebate, the Ontario FTHB rebate or the Ontario ENHR, enter the date the construction of the house was substantially completed. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page4[0].PartB[0].Legaldescr[0].BusinessAddress[0]": [
+      "/Tx",
+      "Part B. House information. Legal description of property. Lot number or strata number."
+    ],
+    "form1[0].Page4[0].PartB[0].Legaldescr[0].PlanNumber[0]": [
+      "/Tx",
+      "Part B. House information. Legal description of property. Plan number."
+    ],
+    "form1[0].Page4[0].PartB[0].Legaldescr[0].Other[0]": [
+      "/Tx",
+      "Part B. House information. Legal description of property. Other."
+    ],
+    "form1[0].Page4[0].PartB[0].Legaldescr[0].Manufacturer[0]": [
+      "/Tx",
+      "Part B. House information. Legal description of property. For a mobile home, indicate. Manufacturer."
+    ],
+    "form1[0].Page4[0].PartB[0].Legaldescr[0].Model[0]": [
+      "/Tx",
+      "Part B. House information. Legal description of property. For a mobile home, indicate. Model."
+    ],
+    "form1[0].Page4[0].PartB[0].Legaldescr[0].SerialNumber[0]": [
+      "/Tx",
+      "Part B. House information. Legal description of property. For a mobile home, indicate. Serial number."
+    ],
+    "form1[0].Page5[0].PartC[0].HousingType[0].RadioButtonGroup[0]": [
+      "/Btn",
+      "RadioButtonGroup"
+    ],
+    "form1[0].Page5[0].PartC[0].builder[0].Type1A[0].SectionC_ApplicationType[0]": [
+      "/Btn",
+      "Part C. Housing and application type. Type 1A. When you buy the house and land from the same builder or you buy a mobile home. Do not tick Type 1A if you bought a mobile home and you lease land that is not a site in a residential trailer park from the vendor of the home. Tick Type 1B in this case. Fill out Section 1 of Part F to calculate the rebate."
+    ],
+    "form1[0].Page5[0].PartC[0].builder[0].Type1B[0].SectionC_ApplicationType[0]": [
+      "/Btn",
+      "Part C. Housing and application type. Type 1B. When you buy a house and lease the land from the same builder. Do not tick Type 1B if you bought a mobile home from a vendor that also leases to you a site in a residential trailer park. Tick Type 1A in this case. The lease must give you an option to buy the land or must be for a term of at least 20 years. Fill out Section 2 of Part F to calculate the rebate."
+    ],
+    "form1[0].Page5[0].PartC[0].directly[0].Type2[0].SectionC_ApplicationType[0]": [
+      "/Btn",
+      "Part C. Housing and application type. Type 2. When you buy both the house and land from the same builder or you buy a mobile home. Do not tick Type 2 if you bought a mobile home and you lease land that is not a site in a residential trailer park from the vendor of the home. Tick Type 5 in this case. Fill out Section 1 of Part F to calculate the rebate. Attach a copy of your Statement of Adjustments and your signed purchase and sale agreement excluding attachments."
+    ],
+    "form1[0].Page5[0].PartC[0].directly[0].Type3[0].SectionC_ApplicationType[0]": [
+      "/Btn",
+      "Part C. Housing and application type. Type 3. When you buy a share of the capital stock of a co-op. Fill out Section 3 of Part F to calculate the rebate. Attach a copy of your Statement of Adjustments and your signed purchase and sale agreement excluding attachments."
+    ],
+    "form1[0].Page5[0].PartC[0].directly[0].Type5[0].SectionC_ApplicationType[0]": [
+      "/Btn",
+      "Part C. Housing and application type. Type 5. When you buy a house and lease the land from the same builder. Do not tick Type 5 if you bought a mobile home from a vendor that also leases to you a site in a residential trailer park. Tick Type 2 in this case. The lease must provide you with an option to buy the land, or must be for a term of at least 20 years. Fill out Section 2 of Part F to calculate the rebate. Attach a copy of your Statement of Adjustments or invoice in the case of a mobile home and your signed purchase and sale agreement excluding attachments."
+    ],
+    "form1[0].Page6[0].PartD[0].LegalName[0].Name[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Builder's or co-op's legal name."
+    ],
+    "form1[0].Page6[0].PartD[0].BusinessNumber[0].BusinessNumber[0].BusinessNumber_RT1[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. First 9 digits of the business number, if it applies."
+    ],
+    "form1[0].Page6[0].PartD[0].BusinessNumber[0].BusinessNumber[0].BusinessNumber_RT[0]": [
+      "/Tx",
+      " "
+    ],
+    "form1[0].Page6[0].PartD[0].BusinessNumber[0].BusinessNumber[0].BusinessNumber_RT2[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Last 4 digits of the business number, if it applies."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].Address[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Address. Unit number, street number, street name, rural route."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].City[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Address. City."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].ProvinceTerritoryState_DropDown[0]": [
+      "/Ch",
+      "Part D. Builder or co-op information. Address. Select the province, territory, or state from the drop down menu. If not listed, type it in manually."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].International_PostalCode_ZIP[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Address. Postal or ZIP code. Postal code, 6 characters or ZIP code, 5 or 9 digits."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].Country[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Address. Country."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].InternationalPhoneNumber[0].International_PhoneNumber[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Address. Telephone number. 10 digits for a North American telephone number or up to 15 digits for an international number."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].InternationalPhoneNumber[0].Extension[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Address. Extension. Maximum 8 digits."
+    ],
+    "form1[0].Page6[0].PartD[0].Address[0].RefoundPayedDirectly[0].YesNo[0]": [
+      "/Btn",
+      "YesNo"
+    ],
+    "form1[0].Page6[0].PartD[0].consent3[0].RadioButtonList2[0]": [
+      "/Btn",
+      "RadioButtonList2"
+    ],
+    "form1[0].Page6[0].PartD[0].DateFromTo[0].FromToDates_Comb_Adv_EN[0].FromDate[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. For Type 1A or 1B, enter the reporting period covered by the GST/HST return on which the builder took a deduction. The builder must take the deduction in the reporting period during which the amount of the rebate is paid or credited to the purchaser. From. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page6[0].PartD[0].DateFromTo[0].FromToDates_Comb_Adv_EN[0].ToDate[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. For Type 1A or 1B, enter the reporting period covered by the GST/HST return on which the builder took a deduction. The builder must take the deduction in the reporting period during which the amount of the rebate is paid or credited to the purchaser. To. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page6[0].PartD[0].Name[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. Name of builder or authorized official."
+    ],
+    "form1[0].Page6[0].PartD[0].Date[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part D. Builder or co-op information. builder or authorized official's signature. Date. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page7[0].PartE[0].Name[0]": [
+      "/Tx",
+      "Part E. Claimant's Certification. Name."
+    ],
+    "form1[0].Page7[0].PartE[0].Date[0].DateYYYYMMDD_Comb[0]": [
+      "/Tx",
+      "Part E. Claimant's Certification. Date. Year 4 digits. Month 2 digits. Day 2 digits."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineA[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line A. GST paid or the federal part of the HST paid on the purchase of the house. Enter the amount from line 1 of Form RC7190-WS. If the purchase and sale agreement for the house was assigned to you and you paid the GST or the federal part of the HST on the assignment, also include the tax you paid on line A."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineB[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line B. Enter the purchase price of the house. Do not include GST or HST. If the purchase and sale agreement for the house was assigned to you and you paid the GST or the federal part of the HST on the assignment, also include the purchase price for the assignment on line B."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineC[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line C. If you are claiming only the GST/HST new housing rebate amount, enter the amount from line 4 of Form RC7190-WS on line c. If you are claiming the FTHB GST/HST rebate or both the FTHB GST/HST rebate and the GST/HST new housing rebate, enter the amount from line 14 of Form RC7190-WS on line c."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineD[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line D. Provincial rebate amount. If you are eligible, complete the calculation on the provincial rebate schedule that applies and enter the amount from line C of that schedule, on line D."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineX1[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line X1. If you are claiming the FTHB GST/HST rebate and either you or someone else has already claimed the GST/HST new housing rebate for the house, including where the rebate was credited by the builder, enter the amount of the GST/HST new housing rebate on line X1."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineX2[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line X2. If you are claiming the Ontario FTHB rebate or the Ontario ENHR and either you or someone else has already claimed the Ontario new housing rebate for the house (including where the rebate was credited by the builder), enter the amount of the Ontario new housing rebate on line X2."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineX3[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line X3. If you are claiming the Ontario ENHR and either you or someone else has already claimed the Ontario FTHB rebate for the house, including where the rebate was credited by the builder, enter the amount of the Ontario FTHB rebate on line X3."
+    ],
+    "form1[0].Page7[0].PartF[0].PartF_Section1[0].LineE[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 1. Rebate calculation for Application Type 1A or 2. Line E. Total rebate amount including any provincial rebate. Line C plus line D minus lines X1, X2, and X3."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineF[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line F. Total purchase price for the house. Do not include amounts for the lease of the land or the option to purchase the land."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineG[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line G. Fair market value of the house, including the land and the building, when possession was transferred to you."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineH[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line H. If you are claiming only the GST/HST new housing rebate amount, enter the amount from line 8 of Form RC7190-WS on line h.  If you are claiming the FTHB GST/HST rebate or both the FTHB GST/HST rebate and the GST/HST new housing rebate, enter the amount from line 18 of Form RC7190-WS, on line H."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineI[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line I. Provincial rebate amount. If you are eligible, complete the calculation on the provincial rebate schedule that applies and enter the amount from line F of that schedule, on line I."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineX1[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line X1. If you are claiming the FTHB GST/HST rebate and either you or someone else has already claimed the GST/HST new housing rebate for the house (including where the rebate was credited by the builder), enter the amount of the GST/HST new housing rebate on line X1."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineX2[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line X2. If you are claiming the Ontario FTHB rebate and either you or someone else has already claimed the Ontario new housing rebate for the house, including where the rebate was credited by the builder, enter the amount of the Ontario new housing rebate on line X2."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineX3[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line X3. If you are claiming the Ontario ENHR and either you or someone else has already claimed the Ontario FTHB rebate for the house, including where the rebate was credited by the builder, enter the amount of the Ontario FTHB rebate on line X3."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section2[0].LineJ[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 2. Rebate calculation for Application Type 1B or 5. Line J. Total rebate amount including any provincial rebate. Line H plus line I minus lines X1, X2, and X3."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineK[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line K. Total purchase price for the share of the capital stock in the co-op. If you purchased any other interest in the corporation, complex, or unit, also include the purchase price for that interest on line K."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineL[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line L. If you are claiming only the GST/HST new housing rebate amount, enter the amount from line 11 of Form RC7190-WS, on line L. If you are claiming the FTHB GST/HST rebate or both the FTHB GST/HST rebate and the GST/HST new housing rebate, enter the amount from line 21 of Form RC7190-WS, on line L."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineM[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line M. Provincial rebate amount. If you are eligible, complete the calculation on the provincial rebate schedule that applies and enter the amount from line H of that schedule on line M."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineX1[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line X1. If you are claiming the FTHB GST/HST rebate and either you or someone else has already claimed the GST/HST new housing rebate for the house (including where the rebate was credited by the builder), enter the amount of the GST/HST new housing rebate on line X1."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineX2[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line X2. If you are claiming the Ontario FTHB rebate or the Ontario ENHR and either you or someone else has already claimed the Ontario new housing rebate for the house, including where the rebate was credited by the builder, enter the amount of the Ontario new housing rebate on line X2."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineX3[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line X3. If you are claiming the Ontario ENHR and either you or someone else has already claimed the Ontario FTHB rebate for the house, including where the rebate was credited by the builder, enter the amount of the Ontario FTHB rebate on line X3."
+    ],
+    "form1[0].Page8[0].PartF_contd[0].PartF_Section3[0].LineN[0].Numeric_Group[0].Amount[0]": [
+      "/Tx",
+      "Part F. Section 3. Rebate calculation for Application Type 3. Line N. Total rebate amount including any provincial rebate. Line L plus line M minus lines X1, X2, and X3."
+    ]
+  },
+  "rc7190": {
+    "form1[0].Page1[0].WhatToFill[0].ApplicationType1[0].ApplicationTypeButtons[0]": [
+      "/Btn",
+      "ApplicationTypeButtons"
+    ],
+    "form1[0].Page1[0].WhatToFill[0].ApplicationType2[0].CalculType1[0]": [
+      "/Btn",
+      "CalculType1"
+    ],
+    "form1[0].Page1[0].WhatToFill[0].ApplicationType2_2[0].CalculType2[0]": [
+      "/Btn",
+      "CalculType2"
+    ],
+    "form1[0].Page1[0].Section1[0].Line1Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Line 1. If you paid GST on the purchase of the house, enter the amount of GST paid on line 1. If you paid HST on the purchase of the house, enter the result of whichever calculation below applies on line 1."
+    ],
+    "form1[0].Page2[0].Section1_Continued[0].Line2[0].Line2Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Line 2. Enter the purchase price of the house, do not include the GST/HST."
+    ],
+    "form1[0].Page2[0].Section1_Continued[0].Line3[0].Line3_Text[0].Calcul1[0].Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Calculation 1. Amount from line 1. "
+    ],
+    "form1[0].Page2[0].Section1_Continued[0].Line3[0].Line3Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Line 3. Enter the result of your calculation on line 3."
+    ],
+    "form1[0].Page2[0].Section1_Continued[0].Line4[0].Line_4_Text[0].Calcul3[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Amount from line 2."
+    ],
+    "form1[0].Page2[0].Section1_Continued[0].Line4[0].Line_4_Text[0].Calcul3[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Amount from line 3."
+    ],
+    "form1[0].Page2[0].Section1_Continued[0].Line4[0].Line_4_Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 1. Line 4. If line 2 is $350,000 or less, enter the amount from line 3 on line 4. If line 2 is $450,000 or more, enter 0 on line 4, since you are not eligible to claim a GST/HST New Housing rebate. However, if you paid HST, you may still be able to claim a provincial new housing rebate. If line 2 is more than $350,000 but less than $450,000, enter the result of the following calculation on line 4:$450,000 minus line 2, divided by $100,000 multiplied by line 3."
+    ],
+    "form1[0].Page2[0].Section2[0].Line5[0].Line5Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Line 5. Total purchase price for the house. Do not include amounts for the lease of the land or the option to purchase the land."
+    ],
+    "form1[0].Page2[0].Section2[0].Line6[0].Line6Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Line 6. Fair market value of the house, including the land and the building, when possession was transferred to you."
+    ],
+    "form1[0].Page2[0].Section2[0].Line7[0].Calcul3[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Amount from line 5."
+    ],
+    "form1[0].Page2[0].Section2[0].Line7[0].Calcul3[0].Amount2[0].Percent[0]": [
+      "/Tx",
+      "Section 2. Rebate rate percentage."
+    ],
+    "form1[0].Page2[0].Section2[0].Line7[0].Line7Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Line 7. Amount from line 5 multiplied by rebate rate."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul1[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 1. Amount from line 6."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul1[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 1. Amount from line 7."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul2[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 2. Amount from line 6."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul2[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 2. Amount from line 7."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul3[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 3. Amount from line 6."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul3[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 3. Amount from line 7."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul4[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 4. Amount from line 6."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Calcul4[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Calculation 4. Amount from line 7."
+    ],
+    "form1[0].Page3[0].Section2_Continued[0].Line8[0].Line_8_Text[0].Line8_calcul[0].Line8Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 2. Line 8. Enter the result of your calculation, whichever applies, on line 8."
+    ],
+    "form1[0].Page3[0].Section3[0].Line9[0].Line9Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Line 9. Total purchase price for the share of the capital stock in the co-op."
+    ],
+    "form1[0].Page3[0].Section3[0].Line10[0].Calcul[0].Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Amount from line 9."
+    ],
+    "form1[0].Page3[0].Section3[0].Line10[0].Calcul[0].Percent[0].Percent[0]": [
+      "/Tx",
+      "Section 3. Rebate rate percentage. "
+    ],
+    "form1[0].Page3[0].Section3[0].Line10[0].Line10Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Line 10. Amount from line 9 multiplied by rebate rate."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul1[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 1. Amount from line 9."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul1[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 1. Amount from line 10."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul2[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 2. Amount from line 9."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul2[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 2. Amount from line 10."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul3[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 3. Amount from line 9."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul3[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 3. Amount from line 10."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul4[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 4. Amount from line 9."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Calcul4[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Calculation 4. Amount from line 10."
+    ],
+    "form1[0].Page4[0].Section3_contd[0].Line11[0].Line11Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 3. Line 11. Enter the result of your calculation, whichever applies, on line 11."
+    ],
+    "form1[0].Page5[0].Section4[0].Line12[0].Line12_Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 4. Line 12. If you paid GST on the purchase of the house, enter the amount of GST paid on line 12. If you paid HST on the purchase of the house, enter the result of whichever calculation below applies, on line 12."
+    ],
+    "form1[0].Page5[0].Section4[0].Line13[0].Line13Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 4. Line 13. Enter on line 13 the purchase price of the house, do not include the GST/HST."
+    ],
+    "form1[0].Page5[0].Section4[0].Line14[0].Line14_Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 4. Amount from line 13."
+    ],
+    "form1[0].Page5[0].Section4[0].Line14[0].Line14_Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 4. Lesser of $50,000 and line 12."
+    ],
+    "form1[0].Page5[0].Section4[0].Line14[0].Line14_Calcul[0].Line14Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 4. Line 14. If line 13 is $1,000,000 or less, enter the amount from line 12 on line 14 (maximum $50,000). If line 13 is $1,500,000 or more, enter \"0\" on line 14, since you are not entitled to a rebate. However, if you paid HST, you may still be able to claim a provincial new housing rebate. If line 13 is more than $1,000,000 but less than $1,500,000, enter the result of the following calculation on line 14:$1,500,000 minus line 13, divided by $500,000 and multiplied by $50,000."
+    ],
+    "form1[0].Page5[0].Section5[0].Line15[0].Line15Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Line 15. Total purchase price for the house. Do not include amounts for the lease of the land or the option to purchase the land."
+    ],
+    "form1[0].Page5[0].Section5[0].Line16[0].Line16Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Line 16. Fair market value of the house, including the land and the building, when possession was transferred to you."
+    ],
+    "form1[0].Page5[0].Section5[0].Line17[0].Calcul3[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Amount from line 15."
+    ],
+    "form1[0].Page5[0].Section5[0].Line17[0].Calcul3[0].Amount2[0].Percent[0]": [
+      "/Tx",
+      "Section 5. Rebate rate percentage."
+    ],
+    "form1[0].Page5[0].Section5[0].Line17[0].Line17Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Line 17. Amount from line 15 multiplied by rebate rate."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul1[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 1.  Amount from line 16."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul1[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 1.  Amount from line 17."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul2[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 2. Amount from line 16."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul2[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 2. Amount from line 17."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul3[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 3. Amount from line 16."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul3[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 3. Amount from line 17."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul4[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 4. Amount from line 16."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Calcul4[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Calculation 4. Amount from line 17."
+    ],
+    "form1[0].Page6[0].Section5_contd[0].Line18Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 5. Line 18. Enter the result of your calculation, whichever applies, on line 18."
+    ],
+    "form1[0].Page6[0].Section6[0].Line19[0].Line19Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Line 19. Total purchase price for the share of the capital stock in the co-op."
+    ],
+    "form1[0].Page6[0].Section6[0].Line20[0].Calcul[0].Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Amount from line 19."
+    ],
+    "form1[0].Page6[0].Section6[0].Line20[0].Calcul[0].Percent[0].Percent[0]": [
+      "/Tx",
+      "Section 6. Rebate rate percentage. "
+    ],
+    "form1[0].Page6[0].Section6[0].Line20[0].Line20Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Line 20. Amount from line 19 multiplied by rebate rate."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul1[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 1. Amount from line 19."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul1[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 1. Amount from line 20."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul2[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 2. Amount from line 19."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul2[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 2. Amount from line 20."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul3[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 3. Amount from line 19."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul3[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 3. Amount from line 20."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul4[0].Calcul[0].Amount1[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 4. Amount from line 19."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Calcul4[0].Calcul[0].Amount2[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Calculation 4. Amount from line 20."
+    ],
+    "form1[0].Page7[0].Section6_contd[0].Line21[0].Line21Amount[0].Amount[0]": [
+      "/Tx",
+      "Section 6. Line 21. Enter the result of your calculation, whichever applies, on line 21."
+    ]
+  }
+}
