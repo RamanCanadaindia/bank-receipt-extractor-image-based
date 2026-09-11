@@ -44,7 +44,7 @@ DB_PATH = DATA_DIR / "form_filler.db"
 
 COMMON_SEMANTIC_PATTERNS: dict[str, list[str]] = {
     # Part A - Claimant
-    "claimant_name": [r"claimant(?:\s*['’]?s)?\s*(?:legal\s*)?name", r"legal\s*name", r"applicant\s*name", r"full\s*name", r"\bbuyer\b"],
+    "claimant_name": [r"claimant(?:\s*['’]?s)?\s*(?:legal\s*)?name", r"purchaser(?:\s*['’]?s)?\s*(?:legal\s*)?name", r"applicant\s*name", r"full\s*name", r"\bbuyer\b"],
     "business_number": [r"business\s*number", r"\bbn\b", r"rt\s*0001", r"gst_number"],
     "sin": [r"social\s*insurance\s*number", r"\bsin\b"],
     "daytime_phone": [r"daytime\s*(?:telephone|phone)", r"telephone\s*number", r"phone\s*(?:number)?", r"day_phone"],
@@ -395,6 +395,35 @@ def smart_map_pdf_values(data: dict[str, str], pdf_fields: dict[str, Any]) -> di
                     mapped_values[field_name] = normalized_data[prefix]
                     break
             if field_name in mapped_values:
+                continue
+
+        # Contextual disambiguation for Part D (Builder) vs Part A (Claimant)
+        is_builder_field = any(b in norm_field for b in ["builder", "vendor", "seller", "partd", "part_d", "page6", "co_op"])
+        is_claimant_field = any(c in norm_field for c in ["claimant", "purchaser", "buyer", "parta", "part_a", "page2"])
+
+        if is_builder_field:
+            if any(k in norm_field for k in ["name", "legal", "company"]):
+                mapped_values[field_name] = normalized_data.get("builder_name", "")
+                continue
+            elif any(k in norm_field for k in ["business", "bn", "rt"]):
+                mapped_values[field_name] = normalized_data.get("builder_business_number", "")
+                continue
+            elif any(k in norm_field for k in ["phone", "tel"]):
+                mapped_values[field_name] = normalized_data.get("builder_phone", "")
+                continue
+            elif any(k in norm_field for k in ["address", "street"]):
+                mapped_values[field_name] = normalized_data.get("builder_address", "")
+                continue
+
+        if is_claimant_field:
+            if any(k in norm_field for k in ["name", "legal"]):
+                mapped_values[field_name] = normalized_data.get("claimant_name", "")
+                continue
+            elif any(k in norm_field for k in ["business", "bn", "rt"]):
+                mapped_values[field_name] = normalized_data.get("business_number", "")
+                continue
+            elif any(k in norm_field for k in ["phone", "tel", "daytime"]):
+                mapped_values[field_name] = normalized_data.get("daytime_phone", "")
                 continue
 
         # Specific handling for Other Purchaser slots (prevents duplicating single purchaser across both slots)
