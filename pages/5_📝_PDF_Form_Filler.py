@@ -397,6 +397,15 @@ def smart_map_pdf_values(data: dict[str, str], pdf_fields: dict[str, Any]) -> di
             if field_name in mapped_values:
                 continue
 
+        # Specific handling for Other Purchaser slots (prevents duplicating single purchaser across both slots)
+        if any(re.search(p, norm_field) for p in COMMON_SEMANTIC_PATTERNS["other_purchasers"]) or "otherpurchaser" in norm_field:
+            is_second_slot = any(marker in field_name.lower() for marker in ["[1]", "_2", "2[0]", "[1].", "otherpurchaser[1]", "purchaser2", "purchaser_2"])
+            if is_second_slot:
+                mapped_values[field_name] = normalized_data.get("other_purchaser_2", "")
+            else:
+                mapped_values[field_name] = normalized_data.get("other_purchaser_1", normalized_data.get("other_purchasers", normalized_data.get("other_purchaser", "")))
+            continue
+
         matched = False
         for sem_key, patterns in COMMON_SEMANTIC_PATTERNS.items():
             if sem_key in normalized_data:
@@ -582,10 +591,17 @@ def main() -> None:
                     value=extracted.get("sin", ""),
                     placeholder="e.g. 123-456-789",
                 )
-                other_buyer = st.text_input(
-                    "Other Purchaser Information (Co-buyers, if any)",
-                    value=extracted.get("other_purchasers", "Emmanuel Ejembi"),
-                    help="If more than one individual bought the house, list other purchasers",
+                col_ob1, col_ob2 = st.columns(2)
+                other_buyer_1 = col_ob1.text_input(
+                    "Other Purchaser 1 (Co-buyer)",
+                    value=extracted.get("other_purchaser_1", extracted.get("other_purchasers", "Emmanuel Ejembi")),
+                    help="First other purchaser's name (Last name, first name, initials)",
+                )
+                other_buyer_2 = col_ob2.text_input(
+                    "Other Purchaser 2 (if any)",
+                    value=extracted.get("other_purchaser_2", ""),
+                    placeholder="Leave blank if only 1",
+                    help="Second other purchaser's name (optional)",
                 )
 
             with col_a2:
@@ -713,8 +729,10 @@ def main() -> None:
             "claimant_name": claimant,
             "business_number": biz_num,
             "sin": sin_val,
-            "other_purchaser": other_buyer,
-            "other_purchasers": other_buyer,
+            "other_purchaser_1": other_buyer_1.strip(),
+            "other_purchaser_2": other_buyer_2.strip(),
+            "other_purchaser": other_buyer_1.strip(),
+            "other_purchasers": other_buyer_1.strip(),
             "daytime_phone": day_phone,
             "extension": ext_val,
             "home_phone": home_phone,
