@@ -28,6 +28,25 @@ be completed by the signers; the builder must review and complete Part D.
 
 ## Verification
 
+### Save and resume
+
+Inputs automatically survive reruns within the same session. Use **Save my
+information for later** to download a JSON draft before closing the browser.
+Use **Open saved information** and **Load saved information** to restore it in
+a later session. Files include entered personal information and must be kept
+private. Source documents and PDF templates are not included. No shared server
+database of client drafts is created.
+
+Missing dates or identity details can be left blank by explicitly choosing
+**Generate an editable draft with the missing details left blank**. These
+downloads are named `DRAFT_...pdf` and a missing-information checklist is offered.
+They are incomplete and must be completed before filing. Invalid dates,
+inconsistent eligibility facts and calculation errors still block generation.
+
+Run `python -m unittest test_housing_drafts -v` for save/load validation and
+`python tests/housing_ui_check.py` for the Streamlit interaction test (requires
+Streamlit and the official PDFs described below).
+
 Run `python -m unittest test_housing_rebate -v`.
 For the official-form integration tests, download the accessible PDFs above as
 `tmp/pdfs/gst190.pdf` and `tmp/pdfs/rc7190.pdf`. The test fills and reopens both

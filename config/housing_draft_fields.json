@@ -1,0 +1,270 @@
+{
+  "is_fthb_claim": {
+    "type": "checkbox"
+  },
+  "is_enhr_claim": {
+    "type": "checkbox"
+  },
+  "onhap_assignment": {
+    "type": "selectbox",
+    "options": [
+      "Not applicable",
+      "Assigned to builder",
+      "Not assigned to builder"
+    ]
+  },
+  "onhap_consent": {
+    "type": "selectbox",
+    "options": [
+      "Not answered",
+      "Yes",
+      "No"
+    ]
+  },
+  "addr": {
+    "type": "text_input",
+    "extracted": "property_address"
+  },
+  "city_val": {
+    "type": "text_input",
+    "extracted": "city"
+  },
+  "prov_val": {
+    "type": "text_input",
+    "extracted": "province"
+  },
+  "postal_val": {
+    "type": "text_input",
+    "extracted": "postal_code"
+  },
+  "primary_res": {
+    "type": "selectbox",
+    "options": [
+      "Yes",
+      "No"
+    ]
+  },
+  "first_occ": {
+    "type": "selectbox",
+    "options": [
+      "Yes",
+      "No"
+    ]
+  },
+  "housing_type_sel": {
+    "type": "selectbox",
+    "options": [
+      "House (including condominium unit)",
+      "Mobile home",
+      "Floating home",
+      "Bed and breakfast",
+      "Duplex"
+    ]
+  },
+  "agree_date": {
+    "type": "text_input",
+    "extracted": "agreement_date"
+  },
+  "comp_date": {
+    "type": "text_input",
+    "extracted": "completion_date"
+  },
+  "poss_date": {
+    "type": "text_input",
+    "extracted": "possession_date"
+  },
+  "construction_start": {
+    "type": "text_input",
+    "extracted": "construction_start_date"
+  },
+  "construction_end": {
+    "type": "text_input",
+    "extracted": "construction_end_date"
+  },
+  "lot_val": {
+    "type": "text_input",
+    "extracted": "lot_number"
+  },
+  "plan_val": {
+    "type": "text_input",
+    "extracted": "plan_number"
+  },
+  "pid_val": {
+    "type": "text_input",
+    "extracted": "pid"
+  },
+  "full_legal": {
+    "type": "text_area",
+    "extracted": "legal_description"
+  },
+  "price_val": {
+    "type": "number_input",
+    "extracted": "purchase_price"
+  },
+  "gst_val": {
+    "type": "number_input",
+    "extracted": "gst_paid"
+  },
+  "provincial_rebate": {
+    "type": "number_input"
+  },
+  "prior_federal": {
+    "type": "number_input"
+  },
+  "prior_provincial": {
+    "type": "number_input"
+  },
+  "prior_ontario_fthb": {
+    "type": "number_input"
+  },
+  "claimant": {
+    "type": "text_input",
+    "extracted": "claimant_name"
+  },
+  "biz_num": {
+    "type": "text_input",
+    "extracted": "business_number"
+  },
+  "sin_val": {
+    "type": "text_input",
+    "extracted": "sin"
+  },
+  "other_buyer_1": {
+    "type": "text_input",
+    "extracted": "other_purchaser_1"
+  },
+  "other_buyer_2": {
+    "type": "text_input",
+    "extracted": "other_purchaser_2"
+  },
+  "day_phone": {
+    "type": "text_input",
+    "extracted": "daytime_phone"
+  },
+  "ext_val": {
+    "type": "text_input",
+    "extracted": "extension"
+  },
+  "home_phone": {
+    "type": "text_input",
+    "extracted": "home_phone"
+  },
+  "lang_pref": {
+    "type": "radio",
+    "options": [
+      "English",
+      "French"
+    ]
+  },
+  "mail_addr": {
+    "type": "text_input",
+    "extracted": "mailing_address"
+  },
+  "mail_city": {
+    "type": "text_input",
+    "extracted": "mailing_city"
+  },
+  "mail_prov": {
+    "type": "text_input",
+    "extracted": "mailing_province"
+  },
+  "mail_postal": {
+    "type": "text_input",
+    "extracted": "mailing_postal_code"
+  },
+  "mail_country": {
+    "type": "text_input",
+    "extracted": "mailing_country"
+  },
+  "manufacturer": {
+    "type": "text_input"
+  },
+  "model": {
+    "type": "text_input"
+  },
+  "serial_number": {
+    "type": "text_input"
+  },
+  "app_type": {
+    "type": "selectbox",
+    "options": [
+      "Type 2 (Directly with CRA - Bought house & land from builder)",
+      "Type 1A (Filed by Builder - Builder credited rebate)",
+      "Type 1B (Filed by Builder - Lease land)",
+      "Type 3 (Directly with CRA - Co-op share)",
+      "Type 5 (Directly with CRA - Lease land)"
+    ]
+  },
+  "builder": {
+    "type": "text_input",
+    "extracted": "builder_name"
+  },
+  "builder_bn": {
+    "type": "text_input",
+    "extracted": "builder_business_number"
+  },
+  "builder_tel": {
+    "type": "text_input",
+    "extracted": "builder_phone"
+  },
+  "builder_addr": {
+    "type": "text_input",
+    "extracted": "builder_address"
+  },
+  "builder_city": {
+    "type": "text_input",
+    "extracted": "builder_city"
+  },
+  "builder_province": {
+    "type": "text_input",
+    "extracted": "builder_province"
+  },
+  "builder_postal": {
+    "type": "text_input",
+    "extracted": "builder_postal_code"
+  },
+  "builder_country": {
+    "type": "text_input",
+    "extracted": "builder_country"
+  },
+  "builder_extension": {
+    "type": "text_input"
+  },
+  "builder_paid": {
+    "type": "selectbox",
+    "options": [
+      "Not answered",
+      "Yes",
+      "No"
+    ]
+  },
+  "builder_official": {
+    "type": "text_input"
+  },
+  "builder_period_from": {
+    "type": "text_input"
+  },
+  "builder_period_to": {
+    "type": "text_input"
+  },
+  "builder_consent": {
+    "type": "selectbox",
+    "options": [
+      "Not answered",
+      "Yes",
+      "No"
+    ]
+  },
+  "builder_tax_rate": {
+    "type": "selectbox",
+    "options": [
+      "5",
+      "13",
+      "14",
+      "15"
+    ]
+  },
+  "fair_market_value": {
+    "type": "number_input"
+  }
+}
