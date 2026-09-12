@@ -712,7 +712,13 @@ def main() -> None:
             with col_c2:
                 st.markdown("###### Part D – Builder Information")
                 builder = st.text_input("Builder's Legal Name", **({"value": extracted.get("builder_name", "")} if 'housing_input_builder' not in st.session_state else {}), key="housing_input_builder")
-                builder_bn = st.text_input("Builder Business Number (RT)", **({"value": extracted.get("builder_business_number", "")} if 'housing_input_builder_bn' not in st.session_state else {}), key="housing_input_builder_bn")
+                builder_bn = st.text_input(
+                    "Builder Business Number (RT)",
+                    **({"value": extracted.get("builder_business_number", "")} if 'housing_input_builder_bn' not in st.session_state else {}),
+                    placeholder="e.g. 763836103 RT 0001",
+                    help="9-digit CRA Business Number (BN) followed by RT0001",
+                    key="housing_input_builder_bn",
+                )
                 builder_tel = st.text_input("Builder Telephone", **({"value": extracted.get("builder_phone", "")} if 'housing_input_builder_tel' not in st.session_state else {}), key="housing_input_builder_tel")
                 builder_addr = st.text_input("Builder Address", **({"value": extracted.get("builder_address", "")} if 'housing_input_builder_addr' not in st.session_state else {}), key="housing_input_builder_addr")
                 builder_city = st.text_input("Builder City", **({"value": extracted.get("builder_city") or ""} if 'housing_input_builder_city' not in st.session_state else {}), key="housing_input_builder_city")

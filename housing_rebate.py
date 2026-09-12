@@ -243,7 +243,9 @@ def map_housing_fields(pdf_bytes, form, data, calc):
                     value = bn_digits[:9]
                 else:
                     account_part = bn_digits[9:]
-                    if 1 <= len(account_part) <= 3:
+                    if not account_part:
+                        account_part = '0001'
+                    elif 1 <= len(account_part) <= 3:
                         account_part = account_part.zfill(4)
                     value = account_part[:4]
         if value is not None:
