@@ -573,6 +573,24 @@ def extract_digital_pdf(pdf_path, bank_name):
         with pdfplumber.open(pdf_source) as pdf:
             for page in pdf.pages:
                 words = page.extract_words()
+                
+                # Expand squished date tokens like '19Dec.' into day ('19') and month ('Dec.')
+                words_expanded = []
+                for w in words:
+                    m_squish = re.match(r'^(\d{1,2})([A-Za-z]{3,}\.?)$', w["text"])
+                    if m_squish:
+                        d_str, m_str = m_squish.groups()
+                        w1 = dict(w)
+                        w1["text"] = d_str
+                        w1["x1"] = w["x0"] + (w["width"] * len(d_str) / len(w["text"]))
+                        w2 = dict(w)
+                        w2["text"] = m_str
+                        w2["x0"] = w1["x1"]
+                        words_expanded.extend([w1, w2])
+                    else:
+                        words_expanded.append(w)
+                words = words_expanded
+
                 # Find vertical coordinates of column headers inside the actual Transaction table header row
                 header_top = None
                 post_x0 = None
@@ -585,7 +603,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                     if w_text == "description":
                         if desc_x0 is None:
                             desc_x0 = w["x0"]
-                    if w_text == "post":
+                    if w_text.startswith("post"):
                         if post_x0 is None:
                             post_x0 = w["x0"]
                 
@@ -680,9 +698,13 @@ def extract_digital_pdf(pdf_path, bank_name):
                     
                     # 1. Detect start and end markers
                     if is_credit_card:
-                        if "your payments" in line_txt_lower or "your new charges and credits" in line_txt_lower or "transactions since" in line_txt_lower:
+                        if (line_txt_lower.startswith("your payments") or 
+                            line_txt_lower.startswith("your new charges") or 
+                            "transactions since" in line_txt_lower or 
+                            line_txt_lower.startswith("card number:")):
                             active_extraction = True
-                            continue
+                            if not line_txt_lower.startswith("card number:"):
+                                continue
                         
                         # Stop if footer or summary categories encountered
                         if any(marker in line_txt_lower for marker in [
@@ -691,11 +713,16 @@ def extract_digital_pdf(pdf_path, bank_name):
                             "your message centre",
                             "go paperless",
                             "total for 4500",
-                            "subtotal for",
                             "total for card",
-                            "pre-authorized debit"
+                            "pre-authorized debit",
+                            "important information",
+                            "service disruption"
                         ]):
                             active_extraction = False
+                            continue
+
+                        # Subtotal lines should be skipped, but should not stop extraction of subsequent cards
+                        if "subtotal for" in line_txt_lower or line_txt_lower.startswith("card number:"):
                             continue
                             
                     else:
@@ -730,10 +757,12 @@ def extract_digital_pdf(pdf_path, bank_name):
                         is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
                         
                         # Dynamic date limit based on description column position
-                        if desc_x0 is not None:
+                        if is_credit_card and post_x0 is not None:
+                            date_limit = post_x0 - 2.0
+                        elif desc_x0 is not None:
                             date_limit = desc_x0 - 5.0
                         else:
-                            date_limit = (post_x0 - 2.0) if (is_credit_card and post_x0 is not None) else (70.0 if is_credit_card else 95.0)
+                            date_limit = 70.0 if is_credit_card else 95.0
                             
                         desc_limit = (desc_x0 - 5.0) if (is_credit_card and desc_x0 is not None) else (110.0 if is_credit_card else 95.0)
                         

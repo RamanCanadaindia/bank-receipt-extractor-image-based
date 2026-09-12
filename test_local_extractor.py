@@ -300,5 +300,18 @@ May 31 Closing totals 10,500.72 10,518.50"""
             self.assertEqual(recon["total_withdrawals"], 1319.54)
             self.assertEqual(recon["difference"], 0.0)
 
+    def test_all_twelve_bmo_mastercard_statements_reconcile(self):
+        """Test that all 12 BMO Mastercard statements (01/2025 to 12/2025) extract and reconcile with 0.0 diff."""
+        import os
+        folder = 'H:/My Drive/Tax Return/RAMAN TAX & ACCOUNTING INC/2025/2025 Bank Statements/Master card'
+        if os.path.exists(folder):
+            for fname in sorted(os.listdir(folder)):
+                if fname.endswith('.pdf'):
+                    pdf_path = os.path.join(folder, fname)
+                    txs, opening_bal = local_extractor.extract_digital_pdf(pdf_path, 'BMO')
+                    recon = local_extractor.reconcile_transactions(txs, opening_bal)
+                    self.assertTrue(recon["reconciled"], f"Failed reconciliation for {fname}: Diff={recon['difference']}")
+                    self.assertAlmostEqual(recon["difference"], 0.0, places=2, msg=f"Non-zero diff for {fname}")
+
 if __name__ == "__main__":
     unittest.main()
