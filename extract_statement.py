@@ -145,13 +145,18 @@ def parse_digital_text(text_pages):
         r"^([A-Za-z]{3})\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
     )
 
+    from local_extractor import is_disclaimer_or_metadata
+
     for page_num, text in enumerate(text_pages, 1):
         lines = text.split("\n")
-        for line in lines:
+        for line_idx, line in enumerate(lines):
             line = line.strip()
             if not line:
                 continue
                 
+            if is_disclaimer_or_metadata(line):
+                continue
+
             m_full = pattern_full_date.match(line)
             if m_full:
                 month_str, day_str, year_str, desc, amount1, amount2, balance_str = m_full.groups()
@@ -170,7 +175,9 @@ def parse_digital_text(text_pages):
                 else:
                     continue
 
-            # Skip summary/opening/closing lines
+            # Skip summary/opening/closing lines and footers
+            if is_disclaimer_or_metadata(desc):
+                continue
             desc_clean = desc.lower().strip()
             if "opening balance" in desc_clean or "closing balance" in desc_clean or "closing totals" in desc_clean:
                 continue
@@ -201,7 +208,10 @@ def parse_digital_text(text_pages):
                 "description": desc.strip(),
                 "debit": debit,
                 "credit": credit,
-                "balance": bal_val
+                "balance": bal_val,
+                "page_num": page_num,
+                "row_idx": line_idx,
+                "statement_order": len(transactions)
             })
             
     return transactions

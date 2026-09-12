@@ -304,12 +304,63 @@ def looks_like_date_word(word):
 def is_disclaimer_or_metadata(desc_text):
     """
     Checks if a description string belongs to footer metadata,
-    legal disclaimers, or statement headers.
+    legal disclaimers, statement headers, item counts, or closing totals.
+    Handles standard spaced text, unspaced text, and wrapped lines.
     """
+    if not desc_text:
+        return False
     txt = str(desc_text).lower().strip()
     if not txt:
         return False
-        
+
+    # 1. Check unspaced alphanumeric representation for merged/wrapped tokens
+    txt_nospace = re.sub(r'[^a-z0-9]', '', txt)
+    
+    nospace_patterns = [
+        r'numberofchequesorrelateditemsenclosedinyourstatement',
+        r'numberofchequesorrelateditems',
+        r'numberofchequesenclosed',
+        r'numberofcheques',
+        r'chequesorrelateditemsenclosed',
+        r'relateditemsenclosedinyourstatement',
+        r'relateditemsenclosed',
+        r'itemsenclosedinyourstatement',
+        r'itemsenclosed',
+        r'numberofitemsprocessed',
+        r'numberofitemsenclosed',
+        r'chequeimagesenclosed',
+        r'chequeimagesummary',
+        r'chequesanddepositsreturned',
+        r'closingtotals',
+        r'closingbalance',
+        r'openingbalance',
+        r'endofstatement',
+        r'trademarksofbankofmontreal',
+        r'amemberofbmofinancialgroup',
+        r'amemberofbmo',
+        r'bmofinancialgroup',
+        r'forquestionsaboutyourstatement',
+        r'forquestionsonthisupdate',
+        r'summaryofaccount',
+        r'accountsummary',
+        r'transactiondetailscontinued',
+        r'continuedonnextpage',
+        r'totaldebited',
+        r'totalcredited',
+        r'amountsdebitedfromyouraccount',
+        r'amountscreditedtoyouraccount',
+        r'amountsdebited',
+        r'amountscredited',
+        r'directbanking',
+        r'businessbankingstatement',
+        r'ebusinessplan',
+        r'pleasecheckthisstatement',
+    ]
+    for p in nospace_patterns:
+        if re.search(p, txt_nospace):
+            return True
+
+    # 2. Spaced text regex patterns
     patterns = [
         r'^continued$',
         r'^page\s*\d+\s*of\s*\d+$',
@@ -321,6 +372,8 @@ def is_disclaimer_or_metadata(desc_text):
         r'continued on next page',
         r'trademark of',
         r'registered trademark',
+        r'trade-mark of',
+        r'registered trade-mark',
         r'interac is a registered',
         r'important:',
         r'foreign currency conversion',
@@ -340,6 +393,8 @@ def is_disclaimer_or_metadata(desc_text):
         r'outside canada',
         r'www\.cibc\.com',
         r'www\.bmo\.com',
+        r'www\.rbc\.com',
+        r'www\.td\.com',
         r'transaction details',
         r'\bper-20\d{2}\b',
         r'^\d{4,}\s+per-\d+$',
@@ -385,9 +440,12 @@ def is_disclaimer_or_metadata(desc_text):
         r'this period',
         r'business account #\s*\d+',
         r'^business name:?$',
-        r'number\s*of\s*items\s*processed',
+        r'number\s*of\s*(cheques|items)',
+        r'cheques\s*or\s*related\s*items',
+        r'items\s*enclosed\s*in\s*your\s*statement',
         r'bank of montreal',
         r'a member of bmo',
+        r'bmo financial group',
         r'ebusiness plan',
         r'transit number:',
         r'data privacy day',
@@ -395,7 +453,11 @@ def is_disclaimer_or_metadata(desc_text):
         r'direct banking',
         r'amounts debited',
         r'amounts credited',
-        r'^closing\s*totals'
+        r'^closing\s*totals',
+        r'cheque\s*images?\s*enclosed',
+        r'cheque\s*image\s*summary',
+        r'end\s*of\s*statement',
+        r'please\s*check\s*this\s*statement'
     ]
     for p in patterns:
         if re.search(p, txt):
@@ -671,12 +733,14 @@ def extract_digital_pdf(pdf_path, bank_name):
                     balance_str = "".join(balance_tokens).replace("$", "").replace(",", "").strip()
                     
                     # Enforce cleaning of OCR description line-by-line
-                    if is_disclaimer_or_metadata(desc_str):
+                    if is_disclaimer_or_metadata(desc_str) or is_disclaimer_or_metadata(line_txt):
                         continue
                         
                     if date_str or desc_str or debit_str or credit_str or balance_str:
                         raw_rows.append({
                             "page_num": page.page_number,
+                            "row_idx": len(raw_rows),
+                            "statement_order": len(raw_rows),
                             "date_raw": date_str,
                             "description": desc_str,
                             "debit_raw": debit_str,
@@ -827,7 +891,9 @@ def extract_digital_pdf(pdf_path, bank_name):
             "regular purchases", "cash advances", "interest rates", "annual rate",
             "identifies points multiplier", "foreign currency", "convenience cheques",
             "if you find an error", "how we charge", "grace period", "installment plan",
-            "payment options", "go paperless", "important notice", "message centre"
+            "payment options", "go paperless", "important notice", "message centre",
+            "number of cheques", "number of items", "enclosed in your statement",
+            "cheques or related items", "trade-marks of bank of montreal", "bank of montreal"
         ]
         for phrase in disclaimer_phrases:
             if phrase in desc_cleaned.lower():
@@ -846,7 +912,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                 "credit": credit,
                 "balance": balance,
                 "is_credit_card": is_credit_card,
-                "page_num": r["page_num"]
+                "page_num": r.get("page_num", 1),
+                "row_idx": r.get("row_idx", len(transactions)),
+                "statement_order": r.get("statement_order", len(transactions))
             })
             
     # Remove any completely empty or invalid transactions
@@ -869,7 +937,7 @@ def extract_digital_pdf(pdf_path, bank_name):
         lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
         pattern_row = re.compile(r'^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?(?:\s+([\d,]+\.\d{2}))?\s+([\d,]+\.\d{2})$')
         
-        for line_str in lines:
+        for line_idx, line_str in enumerate(lines):
             m = pattern_row.match(line_str)
             if m:
                 m_str, d_str, d_desc, a1, a2, a3 = m.groups()
@@ -890,6 +958,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                 if "closing balance" in d_desc.lower() or "closing totals" in d_desc.lower():
                     continue
                     
+                if is_disclaimer_or_metadata(d_desc) or is_disclaimer_or_metadata(line_str):
+                    continue
+
                 year = start_year if month_num >= start_month else end_year
                 date_str = f"{year}-{month_num:02d}-{day_num:02d}"
                 
@@ -916,7 +987,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                     "credit": cred_val,
                     "balance": bal_val,
                     "is_credit_card": is_credit_card,
-                    "page_num": 1
+                    "page_num": 1,
+                    "row_idx": line_idx,
+                    "statement_order": len(final_txs)
                 })
 
     return final_txs, opening_bal
@@ -925,47 +998,85 @@ def reconcile_transactions(transactions, opening_balance):
     """
     Validates balance flows and calculates metrics.
     Opening Balance + sum(credits) - sum(debits) = Closing Balance
+    Verifies running balances step-by-step and flags discrepancies without inserting balancing adjustments.
     """
     total_debits = 0.0
     total_credits = 0.0
+    discrepancies = []
     
-    for tx in transactions:
-        total_debits += tx.get("debit") if tx.get("debit") else 0.0
-        total_credits += tx.get("credit") if tx.get("credit") else 0.0
-        
     is_cc = any(tx.get("is_credit_card") for tx in transactions)
+    current_running = float(opening_balance)
+    
+    for idx, tx in enumerate(transactions):
+        deb = float(tx.get("debit")) if tx.get("debit") is not None else 0.0
+        cred = float(tx.get("credit")) if tx.get("credit") is not None else 0.0
+        total_debits += deb
+        total_credits += cred
+        
+        if is_cc:
+            expected_bal = current_running + deb - cred
+        else:
+            expected_bal = current_running - deb + cred
+            
+        stated_bal = tx.get("balance")
+        if stated_bal is not None:
+            stated_bal = float(stated_bal)
+            step_diff = round(stated_bal - expected_bal, 2)
+            if abs(step_diff) > 0.05:
+                discrepancies.append({
+                    "index": idx,
+                    "date": tx.get("date"),
+                    "description": tx.get("description"),
+                    "expected_balance": round(expected_bal, 2),
+                    "stated_balance": stated_bal,
+                    "difference": step_diff
+                })
+        # Always follow calculated running balance (never insert arbitrary balancing adjustments)
+        current_running = expected_bal
+
+    total_debits = round(total_debits, 2)
+    total_credits = round(total_credits, 2)
+
     # Calculate closing balance from transactions
     if is_cc:
-        calculated_closing = opening_balance - total_credits + total_debits
+        calculated_closing = round(opening_balance - total_credits + total_debits, 2)
     else:
-        calculated_closing = opening_balance - total_debits + total_credits
+        calculated_closing = round(opening_balance - total_debits + total_credits, 2)
     
     # Actual closing balance from last transaction if available
     actual_closing = opening_balance
     
-    # Try to find statement ending balance metadata first
     stmt_ending = next((tx.get("statement_ending_balance") for tx in transactions if tx.get("statement_ending_balance") is not None), None)
     if stmt_ending is not None:
-        actual_closing = stmt_ending
+        actual_closing = float(stmt_ending)
     elif transactions:
-        # Find the last transaction with a valid balance
         for tx in reversed(transactions):
             if tx.get("balance") is not None:
-                actual_closing = tx.get("balance")
+                actual_closing = float(tx.get("balance"))
                 break
                 
     diff = round(actual_closing - calculated_closing, 2)
-    reconciled = abs(diff) <= 0.05
+    reconciled = abs(diff) <= 0.05 and len(discrepancies) == 0
     
+    warning_msg = ""
+    if not reconciled:
+        if abs(diff) > 0.05:
+            warning_msg = f"Reconciliation Warning: Balance mismatch of ${diff:,.2f} (Calculated: ${calculated_closing:,.2f}, Statement: ${actual_closing:,.2f})"
+        if discrepancies:
+            disc_details = f"{len(discrepancies)} running balance step mismatch(es)"
+            warning_msg = f"{warning_msg} ({disc_details})" if warning_msg else f"Reconciliation Warning: {disc_details}"
+
     return {
         "opening_balance": opening_balance,
         "closing_balance": actual_closing,
+        "calculated_closing": calculated_closing,
         "total_withdrawals": total_debits,
         "total_deposits": total_credits,
         "transaction_count": len(transactions),
         "difference": diff,
         "reconciled": reconciled,
-        "warning": "" if reconciled else f"Reconciliation Warning: Balance mismatch of ${diff:,.2f}"
+        "running_discrepancies": discrepancies,
+        "warning": warning_msg
     }
 
 def apply_excel_category_map(df, mapping_excel_path):

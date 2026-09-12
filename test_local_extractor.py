@@ -156,5 +156,102 @@ Jan 31 Closing totals 1,207.77 1,171.51"""
         self.assertEqual(round(reconciliation["total_withdrawals"], 2), 1207.77)
         self.assertEqual(round(reconciliation["total_deposits"], 2), 1171.51)
 
+    def test_bmo_footer_and_item_counts_exclusion(self):
+        """Test that BMO footer item counts (spaced and unspaced) are excluded and genuine fees are preserved."""
+        import extract_statement
+        
+        # Statement snippet with 5 false footer lines (spaced, unspaced, wrapped) + genuine fees and repeated charges
+        statement_text = """Business Banking statement
+For the period ending May 31, 2025
+Summary of account
+Account balance ($) debited ($) credited ($) May 31, 2025
+Business Account # 0789 1984-032 1,462.78 10,500.72 10,518.50 1,480.56
+Transaction details
+Date Description Amounts debited from your account ($) Amounts credited to your account ($) Balance ($)
+May 01 Opening balance 1,462.78
+May 05 Direct Deposit, CLIENT PAYMENT 10,518.50 11,981.28
+May 15 Cheque Processed By Branch 10,490.72 1,490.56
+May 30 Monthly Account Fee 5.00 1,485.56
+May 30 Transaction Fee, EXCESS ITEMS 01 AT $3.50 3.50 1,482.06
+May 30 PARKING METER 1.50 1,480.56
+May 30 Number of cheques or related items enclosed in your statement 1
+May 31 Closing totals 10,500.72 10,518.50"""
+
+        txs = extract_statement.parse_digital_text([statement_text])
+        
+        # Verify that the false footer transaction was completely excluded
+        descriptions = [t["description"] for t in txs]
+        self.assertNotIn("Number of cheques or related items enclosed in your statement", descriptions)
+        self.assertNotIn("Numberofchequesorrelateditemsenclosedinyourstatement", descriptions)
+        
+        # Verify genuine bank fees and legitimate transactions are preserved
+        self.assertIn("Monthly Account Fee", descriptions)
+        self.assertIn("Transaction Fee, EXCESS ITEMS 01 AT $3.50", descriptions)
+        self.assertIn("PARKING METER", descriptions)
+        
+        # Test unspaced metadata detector directly
+        self.assertTrue(local_extractor.is_disclaimer_or_metadata("Number of cheques or related items enclosed in your statement"))
+        self.assertTrue(local_extractor.is_disclaimer_or_metadata("Numberofchequesorrelateditemsenclosedinyourstatement"))
+        self.assertTrue(local_extractor.is_disclaimer_or_metadata("Number of items processed"))
+        self.assertTrue(local_extractor.is_disclaimer_or_metadata("Trade-marks of Bank of Montreal"))
+        self.assertFalse(local_extractor.is_disclaimer_or_metadata("Monthly Account Fee"))
+        self.assertFalse(local_extractor.is_disclaimer_or_metadata("Transaction Fee, EXCESS ITEMS 01 AT $3.50"))
+
+    def test_same_date_transaction_ordering(self):
+        """Test that same-date transactions preserve exact statement sequence."""
+        raw_txs = [
+            {"date": "2025-06-30", "description": "TX 1 - MORNING PURCHASE", "debit": 50.0, "credit": None, "balance": 950.0, "statement_order": 0, "page_num": 1, "row_idx": 1},
+            {"date": "2025-06-30", "description": "TX 2 - LUNCH PAYMENT", "debit": 25.0, "credit": None, "balance": 925.0, "statement_order": 1, "page_num": 1, "row_idx": 2},
+            {"date": "2025-06-30", "description": "TX 3 - AFTERNOON REFUND", "debit": None, "credit": 100.0, "balance": 1025.0, "statement_order": 2, "page_num": 1, "row_idx": 3},
+            {"date": "2025-06-30", "description": "TX 4 - EVENING TRANSFER", "debit": 30.0, "credit": None, "balance": 995.0, "statement_order": 3, "page_num": 1, "row_idx": 4},
+        ]
+        
+        df = pd.DataFrame(raw_txs)
+        df['date_dt'] = pd.to_datetime(df['date'])
+        
+        sort_cols = ['date_dt']
+        if 'statement_order' in df.columns:
+            sort_cols.append('statement_order')
+        df_sorted = df.sort_values(by=sort_cols, kind='stable').reset_index(drop=True)
+        
+        self.assertEqual(df_sorted.iloc[0]["description"], "TX 1 - MORNING PURCHASE")
+        self.assertEqual(df_sorted.iloc[1]["description"], "TX 2 - LUNCH PAYMENT")
+        self.assertEqual(df_sorted.iloc[2]["description"], "TX 3 - AFTERNOON REFUND")
+        self.assertEqual(df_sorted.iloc[3]["description"], "TX 4 - EVENING TRANSFER")
+
+    def test_validation_may_and_june_reconciliation(self):
+        """
+        Validate exact figures from user prompt:
+        May: $1,462.78 + $10,518.50 - $10,500.72 = $1,480.56
+        June: $1,480.56 + $10,995.24 - $12,229.34 = $246.46
+        """
+        # May validation
+        may_txs = [
+            {"date": "2025-05-05", "description": "CLIENT DEPOSIT", "debit": None, "credit": 10518.50, "balance": 11981.28},
+            {"date": "2025-05-20", "description": "SUPPLIER PAYMENT", "debit": 10500.72, "credit": None, "balance": 1480.56},
+        ]
+        may_rec = local_extractor.reconcile_transactions(may_txs, 1462.78)
+        self.assertTrue(may_rec["reconciled"])
+        self.assertEqual(may_rec["opening_balance"], 1462.78)
+        self.assertEqual(may_rec["total_deposits"], 10518.50)
+        self.assertEqual(may_rec["total_withdrawals"], 10500.72)
+        self.assertEqual(may_rec["closing_balance"], 1480.56)
+        self.assertEqual(may_rec["difference"], 0.0)
+        self.assertEqual(len(may_rec["running_discrepancies"]), 0)
+
+        # June validation
+        june_txs = [
+            {"date": "2025-06-10", "description": "INVOICE REVENUE", "debit": None, "credit": 10995.24, "balance": 12475.80},
+            {"date": "2025-06-25", "description": "OPERATING EXPENSES", "debit": 12229.34, "credit": None, "balance": 246.46},
+        ]
+        june_rec = local_extractor.reconcile_transactions(june_txs, 1480.56)
+        self.assertTrue(june_rec["reconciled"])
+        self.assertEqual(june_rec["opening_balance"], 1480.56)
+        self.assertEqual(june_rec["total_deposits"], 10995.24)
+        self.assertEqual(june_rec["total_withdrawals"], 12229.34)
+        self.assertEqual(june_rec["closing_balance"], 246.46)
+        self.assertEqual(june_rec["difference"], 0.0)
+        self.assertEqual(len(june_rec["running_discrepancies"]), 0)
+
 if __name__ == "__main__":
     unittest.main()

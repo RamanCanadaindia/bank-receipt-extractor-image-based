@@ -433,7 +433,12 @@ if uploaded_files:
                 df['source_tab'] = "Bank"
                 df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 if sort_chronologically:
-                    df = df.sort_values(by='date').reset_index(drop=True)
+                    sort_cols = ['date']
+                    if 'statement_order' in df.columns:
+                        sort_cols.append('statement_order')
+                    elif 'page_num' in df.columns and 'row_idx' in df.columns:
+                        sort_cols.extend(['page_num', 'row_idx'])
+                    df = df.sort_values(by=sort_cols, kind='stable').reset_index(drop=True)
                 else:
                     is_cc = (df['is_credit_card'].any() if 'is_credit_card' in df.columns else False) or df['description'].str.lower().str.contains("payment thank you|paiement merci").any()
                     is_bmo = df['institution'].astype(str).str.lower().str.contains("bmo").any() if 'institution' in df.columns else False
@@ -915,7 +920,12 @@ if uploaded_files:
                 # Sort transactions chronologically
                 df_sorted = df_edited.copy()
                 df_sorted['date_dt'] = pd.to_datetime(df_sorted['date'], errors='coerce')
-                df_sorted = df_sorted.sort_values(by='date_dt').reset_index(drop=True)
+                sort_cols = ['date_dt']
+                if 'statement_order' in df_sorted.columns:
+                    sort_cols.append('statement_order')
+                elif 'page_num' in df_sorted.columns and 'row_idx' in df_sorted.columns:
+                    sort_cols.extend(['page_num', 'row_idx'])
+                df_sorted = df_sorted.sort_values(by=sort_cols, kind='stable').reset_index(drop=True)
                 
                 first_op = 0.0
                 if "local_reconciliation_results" in st.session_state and st.session_state.local_reconciliation_results:
