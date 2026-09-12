@@ -235,10 +235,17 @@ def map_housing_fields(pdf_bytes, form, data, calc):
             elif '.PartE.Name' in path:
                 value = str(data.get('claimant_name') or '')
             if path.endswith(('BusinessNumber_RT1', 'BusinessNumber_RT2')):
-                bn = re.sub(r'[^0-9]', '', str(data.get('builder_business_number' if '.PartD.' in path else 'business_number') or ''))
-                if bn and len(bn) not in (9, 13):
-                    raise ValueError('Business numbers require 9 digits, optionally followed by RT and 4 digits.')
-                value = bn[:9] if path.endswith('RT1') else bn[9:]
+                bn_raw = str(data.get('builder_business_number' if '.PartD.' in path else 'business_number') or '')
+                bn_digits = re.sub(r'[^0-9]', '', bn_raw)
+                if not bn_digits:
+                    value = ''
+                elif path.endswith('RT1'):
+                    value = bn_digits[:9]
+                else:
+                    account_part = bn_digits[9:]
+                    if 1 <= len(account_part) <= 3:
+                        account_part = account_part.zfill(4)
+                    value = account_part[:4]
         if value is not None:
             values[name] = value
     return values
