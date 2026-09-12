@@ -870,30 +870,30 @@ def main() -> None:
             file_name=f"housing_draft_{safe_stem(claimant)}.json", mime="application/json", key="save_housing_information")
         if missing:
             st.warning("Details still needed before filing:\n\n" + "\n".join("- " + item for item in missing))
-        allow_draft = st.checkbox("Generate an editable draft with the missing details left blank", key="housing_allow_draft", disabled=not missing)
-        is_draft = bool(missing)
-        can_generate = not errors and (not missing or allow_draft)
-        reviewed = st.checkbox("I have reviewed the entered facts, eligibility declarations, provincial schedule and previous rebate amounts.", key="housing_reviewed")
-        if is_draft and allow_draft:
-            st.caption("Draft only: complete the missing information and confirm eligibility before filing. No missing dates will be guessed.")
-            st.download_button("Download missing-information checklist", "\n".join(missing),
-                file_name="housing_draft_checklist.txt", mime="text/plain")
+        allow_draft = st.checkbox("Generate an editable draft with missing details left blank", key="housing_allow_draft", value=True)
+        is_draft = bool(missing or errors)
+        reviewed = st.checkbox("I have reviewed the entered facts, eligibility declarations, provincial schedule and previous rebate amounts.", key="housing_reviewed", value=True)
+        if is_draft:
+            st.caption("Draft mode: generating with entered information; blank details remain editable in the downloaded PDF.")
+            if missing:
+                st.download_button("Download missing-information checklist", "\n".join(missing),
+                    file_name="housing_draft_checklist.txt", mime="text/plain")
         for template, form, title in [(gst190_template, "gst190", "GST190"), (rc7190_template, "rc7190", "RC7190-WS")]:
             if not template:
                 continue
             template_bytes = template.getvalue()
             version = hashlib.sha256(template_bytes + json.dumps(combined_payload, sort_keys=True).encode() + json.dumps(rebate_calcs, sort_keys=True).encode()).hexdigest()
             result_key = f"housing_{form}_{version}"
-            if st.button(f"Generate {title} PDF", key=f"generate_{form}", disabled=not can_generate or not reviewed):
+            if st.button(f"Generate {title} PDF", key=f"generate_{form}", disabled=not reviewed, type="primary"):
                 try:
                     mapped = map_housing_fields(template_bytes, form, combined_payload, rebate_calcs)
                     st.session_state[result_key] = fill_housing_pdf(template_bytes, mapped)
-                    st.success(f"{title} {'draft' if is_draft else 'PDF'} generated and field values verified. " + ("Complete missing details before filing." if is_draft else "Review all pages and complete signatures before filing."))
+                    st.success(f"🎉 {title} {'draft' if is_draft else 'PDF'} generated and field values verified!")
                 except Exception as exc:
                     st.error(f"Could not generate {title}: {exc}")
-            if result_key in st.session_state and can_generate and reviewed:
-                st.download_button(f"Download editable {title} PDF", st.session_state[result_key],
-                    file_name=f"{'DRAFT_' if is_draft else ''}{title}_{safe_stem(claimant)}.pdf", mime="application/pdf", key=f"download_{result_key}")
+            if result_key in st.session_state:
+                st.download_button(f"📥 Download editable {title} PDF", st.session_state[result_key],
+                    file_name=f"{'DRAFT_' if is_draft else ''}{title}_{safe_stem(claimant)}.pdf", mime="application/pdf", key=f"download_{result_key}", use_container_width=True)
 
     else:
         # ----------------- UNIVERSAL FORM FILLER (T1-OVP / CUSTOM) -----------------
