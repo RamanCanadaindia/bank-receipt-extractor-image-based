@@ -836,9 +836,16 @@ def main() -> None:
             if not str(val or "").strip():
                 missing.append(f"Enter {label.lower()} date in the House & Legal Description tab.")
                 continue
-            try:
-                parsed_dates[label] = datetime.strptime(val, "%Y-%m-%d").date()
-            except (ValueError, TypeError):
+            parsed_val = None
+            for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y.%m.%d", "%B %d, %Y", "%b %d, %Y", "%Y-%m", "%Y%m%d"):
+                try:
+                    parsed_val = datetime.strptime(str(val).strip(), fmt).date()
+                    break
+                except Exception:
+                    continue
+            if parsed_val:
+                parsed_dates[label] = parsed_val
+            else:
                 errors.append(f"Enter {label.lower()} date as YYYY-MM-DD.")
         if is_fthb_claim and "Agreement" in parsed_dates:
             if not datetime(2025, 3, 20).date() <= parsed_dates["Agreement"] < datetime(2031, 1, 1).date():

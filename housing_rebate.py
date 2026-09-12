@@ -88,7 +88,31 @@ def field_info(pdf_bytes):
 def _date(value):
     if not value:
         return ''
-    return date.fromisoformat(str(value)).strftime('%Y%m%d')
+    val_str = str(value).strip()
+    if not val_str:
+        return ''
+    try:
+        return date.fromisoformat(val_str).strftime('%Y%m%d')
+    except Exception:
+        pass
+    m_ym = re.match(r'^(\d{4})[-/.](\d{1,2})$', val_str)
+    if m_ym:
+        year, month = int(m_ym.group(1)), int(m_ym.group(2))
+        return f'{year:04d}{month:02d}01'
+    for fmt in ('%Y-%m-%d', '%Y/%m/%d', '%Y.%m.%d', '%B %d, %Y', '%b %d, %Y', '%d-%m-%Y', '%d/%m/%Y', '%Y%m%d'):
+        try:
+            from datetime import datetime
+            return datetime.strptime(val_str, fmt).strftime('%Y%m%d')
+        except Exception:
+            continue
+    digits = re.sub(r'\D', '', val_str)
+    if len(digits) == 8:
+        return digits
+    elif len(digits) == 6:
+        return digits + '01'
+    elif len(digits) == 4:
+        return digits + '0101'
+    return ''
 
 
 def map_housing_fields(pdf_bytes, form, data, calc):
