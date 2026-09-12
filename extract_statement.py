@@ -144,8 +144,16 @@ def parse_digital_text(text_pages):
     pattern_short_date = re.compile(
         r"^([A-Za-z]{3})\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
     )
+    # Pattern 3: Credit Card with Trans Date and optional Posting Date, description, amount, and optional CR
+    pattern_cc_date = re.compile(
+        r"^([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$",
+        re.IGNORECASE
+    )
 
-    from local_extractor import is_disclaimer_or_metadata
+    from local_extractor import is_disclaimer_or_metadata, extract_statement_period
+
+    start_year, start_month, end_year, end_month = extract_statement_period(full_text)
+    detected_year = str(start_year)
 
     for page_num, text in enumerate(text_pages, 1):
         lines = text.split("\n")
@@ -158,6 +166,8 @@ def parse_digital_text(text_pages):
                 continue
 
             m_full = pattern_full_date.match(line)
+            m_cc = None
+            cr_flag = None
             if m_full:
                 month_str, day_str, year_str, desc, amount1, amount2, balance_str = m_full.groups()
                 month = months_map.get(month_str.capitalize(), "01")
@@ -171,9 +181,31 @@ def parse_digital_text(text_pages):
                         continue
                     month = months_map.get(month_str.capitalize(), "01")
                     day = f"{int(day_str):02d}"
-                    date = f"{detected_year}-{month}-{day}"
+                    m_int = int(month)
+                    if start_month <= end_month:
+                        yr = start_year
+                    else:
+                        yr = start_year if m_int >= start_month else end_year
+                    date = f"{yr}-{month}-{day}"
                 else:
-                    continue
+                    m_cc = pattern_cc_date.match(line)
+                    if m_cc:
+                        month_str, day_str, desc, amount1, cr_flag = m_cc.groups()
+                        m_cap = month_str.capitalize()[:3]
+                        if m_cap not in months_map:
+                            continue
+                        month = months_map[m_cap]
+                        day = f"{int(day_str):02d}"
+                        m_int = int(month)
+                        if start_month <= end_month:
+                            yr = start_year
+                        else:
+                            yr = start_year if m_int >= start_month else end_year
+                        date = f"{yr}-{month}-{day}"
+                        amount2 = None
+                        balance_str = None
+                    else:
+                        continue
 
             # Skip summary/opening/closing lines and footers
             if is_disclaimer_or_metadata(desc):
@@ -192,13 +224,21 @@ def parse_digital_text(text_pages):
                 debit = val1
                 credit = val2
             elif val1 is not None:
-                is_known_credit = any(k in desc_clean for k in ("deposit", "received", "rebate", "refund", "payroll", "credit", "cr", "depot"))
-                if is_known_credit:
-                    credit = val1
-                    debit = None
+                if m_cc:
+                    if cr_flag or re.search(r'\bcr\b', desc_clean) or any(k in desc_clean for k in ("payment received", "pymt received", "refund", "rebate")):
+                        credit = val1
+                        debit = None
+                    else:
+                        debit = val1
+                        credit = None
                 else:
-                    debit = val1
-                    credit = None
+                    is_known_credit = bool(re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean))
+                    if is_known_credit:
+                        credit = val1
+                        debit = None
+                    else:
+                        debit = val1
+                        credit = None
             elif bal_val is not None:
                 debit = None
                 credit = None
@@ -436,6 +476,13 @@ def validate_and_correct_transactions(transactions, sort_chronologically=True):
         cred_val = safe_float(tx.get("credit"))
         tx["credit"] = cred_val if cred_val != 0.0 else None
         
+    # Check if this statement actually has balance column data
+    has_balances = any(safe_float(tx.get("balance")) != 0.0 for tx in transactions)
+    if not has_balances:
+        if sort_chronologically:
+            transactions.sort(key=lambda x: x["date"])
+        return transactions
+
     # Store original order index
     for idx, tx in enumerate(transactions):
         tx["original_index"] = idx
@@ -515,7 +562,17 @@ def main():
     
     if text_pages and not args.force_ocr:
         print(f"Detected digital text in PDF ({len(text_pages)} pages). Extracting...")
-        transactions = parse_digital_text(text_pages)
+        try:
+            from local_extractor import detect_bank, extract_digital_pdf
+            detected_bank = detect_bank(args.input_pdf)
+            local_txs, _ = extract_digital_pdf(args.input_pdf, detected_bank)
+            if local_txs:
+                transactions = local_txs
+        except Exception as e:
+            print(f"extract_digital_pdf fallback to parse_digital_text: {e}")
+            
+        if not transactions:
+            transactions = parse_digital_text(text_pages)
     else:
         # Step 2: Fallback to OCR / Image processing
         print("PDF appears to be scanned or force-ocr was enabled.")

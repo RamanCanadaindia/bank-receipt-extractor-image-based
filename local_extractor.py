@@ -77,8 +77,20 @@ def extract_statement_period(text):
     
     current_year = datetime.now().year
     
-    # Try to find dates like "December 20, 2024 to January 19, 2025" or "Dec 20, 2024 - Jan 19, 2025"
-    pattern = r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2},\s+(\d{4})\b'
+    # 1. Match explicit statement period: e.g. "Statement period Dec. 29, 2024 - Jan. 28, 2025" or "From Nov 1, 2024 to Nov 30, 2024"
+    m_period = re.search(
+        r'(?:statement\s+period|period\s+covered|from)\s+([a-z]{3,9})\.?\s+\d{1,2},?\s+(\d{4})\s*(?:-|–|to)\s*([a-z]{3,9})\.?\s+\d{1,2},?\s+(\d{4})',
+        text.lower()
+    )
+    if m_period:
+        m1_str, y1_str, m2_str, y2_str = m_period.groups()
+        m1 = months_map.get(m1_str[:3])
+        m2 = months_map.get(m2_str[:3])
+        if m1 and m2:
+            return int(y1_str), m1, int(y2_str), m2
+
+    # 2. Try to find dates like "December 20, 2024 to January 19, 2025" or "Dec 20, 2024 - Jan 19, 2025" (allow dot like Dec.)
+    pattern = r'\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+(\d{4})\b'
     matches = re.findall(pattern, text.lower())
     
     # Parse unique dates and sort them chronologically
@@ -600,10 +612,10 @@ def extract_digital_pdf(pdf_path, bank_name):
                 if is_credit_card:
                     deb_range = (999.0, 999.0)
                     cred_range = (999.0, 999.0)
-                    if bank_name == "BMO":
-                        bal_range = (370.0, 430.0)
+                    if balance_x_coords:
+                        bal_range = (min(c[0] for c in balance_x_coords) - 40.0, max(c[1] for c in balance_x_coords) + 60.0)
                     else:
-                        bal_range = (500.0, 580.0)
+                        bal_range = (470.0, 600.0)
                 elif bank_name == "BMO":
                     deb_range = (300.0, 420.0)
                     cred_range = (420.0, 515.0)
@@ -734,7 +746,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                             debit_tokens.append(text_token)
                         elif cred_range[0] <= x_mid < cred_range[1] and is_numeric:
                             credit_tokens.append(text_token)
-                        elif bal_range[0] <= x_mid < bal_range[1] and is_numeric:
+                        elif bal_range[0] <= x_mid < bal_range[1] and (is_numeric or text_token.upper() == "CR"):
                             balance_tokens.append(text_token)
                         else:
                             desc_tokens.append(text_token)
@@ -966,9 +978,11 @@ def extract_digital_pdf(pdf_path, bank_name):
         }
         lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
         pattern_row = re.compile(r'^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?(?:\s+([\d,]+\.\d{2}))?\s+([\d,]+\.\d{2})$')
+        pattern_cc_fallback = re.compile(r'^([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$', re.IGNORECASE)
         
         for line_idx, line_str in enumerate(lines):
             m = pattern_row.match(line_str)
+            m_cc = pattern_cc_fallback.match(line_str) if not m else None
             if m:
                 m_str, d_str, d_desc, a1, a2, a3 = m.groups()
                 m_key = m_str.lower()[:3]
@@ -1017,6 +1031,30 @@ def extract_digital_pdf(pdf_path, bank_name):
                     "credit": cred_val,
                     "balance": bal_val,
                     "is_credit_card": is_credit_card,
+                    "page_num": 1,
+                    "row_idx": line_idx,
+                    "statement_order": len(final_txs)
+                })
+            elif m_cc:
+                m_str, d_str, d_desc, a1, cr_flag = m_cc.groups()
+                m_key = m_str.lower()[:3]
+                if m_key not in months_map:
+                    continue
+                if is_disclaimer_or_metadata(d_desc) or is_disclaimer_or_metadata(line_str):
+                    continue
+                month_num = months_map[m_key]
+                day_num = int(d_str)
+                year = start_year if month_num >= start_month else end_year
+                date_str = f"{year}-{month_num:02d}-{day_num:02d}"
+                val_amt = float(a1.replace(",", ""))
+                is_cr = bool(cr_flag) or any(k in d_desc.lower() for k in ("payment", "thank you", "paiement", "merci", "refund", "credit", "cr"))
+                final_txs.append({
+                    "date": date_str,
+                    "description": d_desc.strip(),
+                    "debit": None if is_cr else val_amt,
+                    "credit": val_amt if is_cr else None,
+                    "balance": None,
+                    "is_credit_card": True,
                     "page_num": 1,
                     "row_idx": line_idx,
                     "statement_order": len(final_txs)

@@ -280,5 +280,25 @@ May 31 Closing totals 10,500.72 10,518.50"""
             self.assertEqual(rec["closing_balance"], expected_cl)
             self.assertEqual(rec["difference"], 0.0)
 
+    def test_bmo_mastercard_extraction_and_reconciliation(self):
+        """Test BMO MasterCard extraction, dates (spanning 2024 to 2025), and reconciliation."""
+        import os
+        uploaded_pdf = 'C:/Users/admin/.gemini/antigravity-ide/brain/2e063a42-16af-43e5-9710-ecd067f4343e/.user_uploaded/media_1789244866204.pdf'
+        if os.path.exists(uploaded_pdf):
+            txs, opening_bal = local_extractor.extract_digital_pdf(uploaded_pdf, 'BMO')
+            self.assertEqual(len(txs), 28)
+            self.assertEqual(opening_bal, 1539.97)
+            self.assertEqual(txs[0]["date"], "2024-12-28")
+            self.assertEqual(txs[1]["date"], "2025-01-01")
+            self.assertEqual(txs[-1]["date"], "2025-01-28")
+            
+            recon = local_extractor.reconcile_transactions(txs, opening_bal)
+            self.assertTrue(recon["reconciled"])
+            self.assertEqual(recon["opening_balance"], 1539.97)
+            self.assertEqual(recon["closing_balance"], 2323.51)
+            self.assertEqual(recon["total_deposits"], 536.00)
+            self.assertEqual(recon["total_withdrawals"], 1319.54)
+            self.assertEqual(recon["difference"], 0.0)
+
 if __name__ == "__main__":
     unittest.main()
