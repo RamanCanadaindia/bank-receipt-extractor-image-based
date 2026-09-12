@@ -860,7 +860,7 @@ if uploaded_files:
         st.write("")
         st.subheader("📥 Export Options")
         
-        col_ex1, col_ex2, col_ex3 = st.columns(3)
+        col_ex1, col_ex1b, col_ex2, col_ex3 = st.columns(4)
         
         with col_ex1:
             csv_data = df_edited.to_csv(index=False)
@@ -870,6 +870,27 @@ if uploaded_files:
                 file_name="extracted_bank_transactions.csv",
                 mime="text/csv",
                 key="download_csv_btn"
+            )
+
+        with col_ex1b:
+            # Single-column CSV: one signed Amount column (debit = negative, credit = positive)
+            df_single_col = df_edited.copy()
+            deb_vals = pd.to_numeric(df_single_col.get('debit', pd.Series()), errors='coerce').fillna(0)
+            cred_vals = pd.to_numeric(df_single_col.get('credit', pd.Series()), errors='coerce').fillna(0)
+            df_single_col['amount'] = (cred_vals - deb_vals).round(2)
+            cols_single = ['date', 'description', 'amount']
+            if 'balance' in df_single_col.columns:
+                cols_single.append('balance')
+            if 'category' in df_single_col.columns:
+                cols_single.append('category')
+            csv_single_data = df_single_col[cols_single].to_csv(index=False)
+            st.download_button(
+                label="📄 Download Single Column CSV",
+                data=csv_single_data,
+                file_name="extracted_transactions_single_col.csv",
+                mime="text/csv",
+                key="download_csv_single_btn",
+                help="One Amount column: negative = withdrawal, positive = deposit"
             )
             
         with col_ex2:
