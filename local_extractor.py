@@ -333,7 +333,6 @@ def is_disclaimer_or_metadata(desc_text):
         r'chequesanddepositsreturned',
         r'closingtotals',
         r'closingbalance',
-        r'openingbalance',
         r'endofstatement',
         r'trademarksofbankofmontreal',
         r'amemberofbmofinancialgroup',
@@ -382,7 +381,6 @@ def is_disclaimer_or_metadata(desc_text):
         r'account summary',
         r'summary of account',
         r'branch transit number',
-        r'opening balance on',
         r'closing balance on',
         r'statement period',
         r'for the period ending',
@@ -521,15 +519,30 @@ def extract_digital_pdf(pdf_path, bank_name):
     
     prev_bal = None
     ending_bal = None
-    if is_credit_card:
-        txt_lower = raw_text.lower()
-        # Find previous balance
-        m_prev = re.search(r'(?:previous|opening|prior)\s+(?:total\s+)?(?:statement\s+)?balance\s*(?:forward)?(?:,?\s*[a-z]{3,}\.?\s+\d{1,2},?\s+\d{4})?\s+[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
-        if m_prev:
+    opening_bal_from_text = None
+    txt_lower = raw_text.lower()
+    
+    # Check for BMO summary of account box: Business Account # XXXX XXXX-XXX <opening_balance> <debited> <credited> <closing_balance>
+    m_bmo_sum = re.search(r'Business Account\s*#?\s*[\d\s\-]+\s+([\d,]+\.\d{2})\s+[\d,]+\.\d{2}\s+[\d,]+\.\d{2}\s+([\d,]+\.\d{2})', raw_text, re.IGNORECASE)
+    if m_bmo_sum:
+        try:
+            opening_bal_from_text = float(m_bmo_sum.group(1).replace(",", ""))
+        except ValueError:
+            pass
+            
+    # Check for standard opening balance patterns in raw text
+    if opening_bal_from_text is None:
+        m_op = re.search(r'(?:opening|previous|prior)\s+(?:total\s+)?(?:statement\s+)?balance\s*(?:forward)?(?:,?\s*[a-z]{3,}\.?\s+\d{1,2},?\s+\d{4})?\s*[\:\$]?\s*([\d,]+\.\d{2})', txt_lower)
+        if m_op:
             try:
-                prev_bal = float(m_prev.group(1).replace(",", ""))
+                opening_bal_from_text = float(m_op.group(1).replace(",", ""))
             except ValueError:
                 pass
+
+    if opening_bal_from_text is not None and prev_bal is None:
+        prev_bal = opening_bal_from_text
+
+    if is_credit_card:
         # Find ending balance
         m_end = re.search(r'(?:total|new|ending|closing|current)\s+(?:statement\s+)?balance\s*(?:due)?\s*(?:=|\s)\s*[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
         if m_end:
@@ -732,6 +745,23 @@ def extract_digital_pdf(pdf_path, bank_name):
                     credit_str = "".join(credit_tokens).replace("$", "").replace(",", "").strip()
                     balance_str = "".join(balance_tokens).replace("$", "").replace(",", "").strip()
                     
+                    # Capture opening balance rows before disclaimer filter
+                    desc_lower_check = desc_str.lower().strip()
+                    line_lower_check = line_txt.lower().strip()
+                    is_op = any(k in desc_lower_check for k in ("opening", "balance forward", "solde reporté")) or ("opening balance" in line_lower_check)
+                    if is_op:
+                        raw_rows.append({
+                            "page_num": page.page_number,
+                            "row_idx": len(raw_rows),
+                            "statement_order": len(raw_rows),
+                            "date_raw": date_str,
+                            "description": desc_str if desc_str else "Opening balance",
+                            "debit_raw": debit_str,
+                            "credit_raw": credit_str,
+                            "balance_raw": balance_str
+                        })
+                        continue
+
                     # Enforce cleaning of OCR description line-by-line
                     if is_disclaimer_or_metadata(desc_str) or is_disclaimer_or_metadata(line_txt):
                         continue
@@ -991,6 +1021,24 @@ def extract_digital_pdf(pdf_path, bank_name):
                     "row_idx": line_idx,
                     "statement_order": len(final_txs)
                 })
+
+    # Ensure opening balance is set
+    if not opening_found or opening_bal == 0.0:
+        if opening_bal_from_text is not None and opening_bal_from_text > 0.0:
+            opening_bal = opening_bal_from_text
+            opening_found = True
+        elif final_txs:
+            for tx in final_txs:
+                if tx.get("balance") is not None:
+                    tb = float(tx["balance"])
+                    td = float(tx.get("debit") or 0.0)
+                    tc = float(tx.get("credit") or 0.0)
+                    if is_credit_card:
+                        opening_bal = round(tb - td + tc, 2)
+                    else:
+                        opening_bal = round(tb + td - tc, 2)
+                    opening_found = True
+                    break
 
     return final_txs, opening_bal
 

@@ -253,5 +253,32 @@ May 31 Closing totals 10,500.72 10,518.50"""
         self.assertEqual(june_rec["difference"], 0.0)
         self.assertEqual(len(june_rec["running_discrepancies"]), 0)
 
+    def test_all_ten_bmo_months_opening_and_reconciliation(self):
+        """Test reconciliation across all 10 statements with correct opening balances."""
+        months_data = [
+            ("03 31 2025", 49.27, 1012.58, 1061.85),
+            ("04 30 2025", 1061.85, 400.93, 1462.78),
+            ("05 30 2025", 1462.78, 17.78, 1480.56),
+            ("06 30 2025", 1480.56, -1234.10, 246.46),
+            ("07 31 2025", 246.46, -113.72, 132.74),
+            ("08 29 2025", 132.74, -21.79, 110.95),
+            ("09 29 2025", 110.95, -46.68, 64.27),
+            ("10 31 2025", 64.27, -25.38, 38.89),
+            ("11 28 2025", 38.89, -36.48, 2.41),
+            ("12 31 2025", 2.41, 49.85, 52.26)
+        ]
+        for name, expected_op, net_flow, expected_cl in months_data:
+            txs = []
+            if net_flow >= 0:
+                txs.append({"date": "2025-01-15", "description": "NET INFLOW", "debit": None, "credit": net_flow, "balance": expected_cl})
+            else:
+                txs.append({"date": "2025-01-15", "description": "NET OUTFLOW", "debit": abs(net_flow), "credit": None, "balance": expected_cl})
+            
+            rec = local_extractor.reconcile_transactions(txs, expected_op)
+            self.assertTrue(rec["reconciled"], f"Failed for {name}")
+            self.assertEqual(rec["opening_balance"], expected_op)
+            self.assertEqual(rec["closing_balance"], expected_cl)
+            self.assertEqual(rec["difference"], 0.0)
+
 if __name__ == "__main__":
     unittest.main()
