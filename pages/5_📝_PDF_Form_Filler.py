@@ -502,18 +502,19 @@ def main() -> None:
             )
 
         with col_up2:
-            st.markdown("##### 📋 Target Fillable CRA Forms")
+            st.markdown("##### 📋 Target Fillable CRA Forms *(Pre-loaded by default)*")
+            st.caption("Official CRA 2026/2025 fillable templates are pre-loaded automatically. You may optionally upload your own templates below to override them.")
             gst190_template = st.file_uploader(
-                "Upload Fillable Form GST190 (PDF)",
+                "Upload Custom GST190 PDF (Optional)",
                 type=["pdf"],
                 key="gst190_template",
-                help="CRA GST190 New Housing Rebate Application PDF template",
+                help="Optional override for CRA GST190 New Housing Rebate Application PDF template",
             )
             rc7190_template = st.file_uploader(
-                "Upload Fillable Form RC7190-WS (PDF)",
+                "Upload Custom RC7190-WS PDF (Optional)",
                 type=["pdf"],
                 key="rc7190_template",
-                help="CRA RC7190-WS Calculation Worksheet PDF template",
+                help="Optional override for CRA RC7190-WS Calculation Worksheet PDF template",
             )
 
         api_key = get_gemini_api_key()
@@ -891,22 +892,44 @@ def main() -> None:
             if missing:
                 st.download_button("Download missing-information checklist", "\n".join(missing),
                     file_name="housing_draft_checklist.txt", mime="text/plain")
-        for template, form, title in [(gst190_template, "gst190", "GST190"), (rc7190_template, "rc7190", "RC7190-WS")]:
-            if not template:
+        default_gst190 = Path("templates/gst190.pdf")
+        default_rc7190 = Path("templates/rc7190.pdf")
+        gst_bytes = gst190_template.getvalue() if gst190_template else (default_gst190.read_bytes() if default_gst190.exists() else None)
+        rc_bytes = rc7190_template.getvalue() if rc7190_template else (default_rc7190.read_bytes() if default_rc7190.exists() else None)
+
+        forms_to_generate = [
+            (gst_bytes, "gst190", "GST190 Application", "GST/HST New Housing Rebate Application (10 pages)"),
+            (rc_bytes, "rc7190", "RC7190-WS Worksheet", "GST190 Calculation Worksheet — RC7190-WS (7 pages)"),
+        ]
+
+        st.markdown("---")
+        st.markdown("#### 📄 Generate CRA PDF Forms")
+
+        for template_bytes, form_code, short_title, full_title in forms_to_generate:
+            if not template_bytes:
+                st.warning(f"Template for {short_title} not found. Please upload it above.")
                 continue
-            template_bytes = template.getvalue()
             version = hashlib.sha256(template_bytes + json.dumps(combined_payload, sort_keys=True).encode() + json.dumps(rebate_calcs, sort_keys=True).encode()).hexdigest()
-            result_key = f"housing_{form}_{version}"
-            if st.button(f"Generate {title} PDF", key=f"generate_{form}", disabled=not reviewed, type="primary"):
+            result_key = f"housing_{form_code}_{version}"
+            
+            st.markdown(f"**{short_title}** — *{full_title}*")
+            if st.button(f"Generate {short_title} PDF", key=f"generate_{form_code}", disabled=not reviewed, type="primary"):
                 try:
-                    mapped = map_housing_fields(template_bytes, form, combined_payload, rebate_calcs)
+                    mapped = map_housing_fields(template_bytes, form_code, combined_payload, rebate_calcs)
                     st.session_state[result_key] = fill_housing_pdf(template_bytes, mapped)
-                    st.success(f"🎉 {title} {'draft' if is_draft else 'PDF'} generated and field values verified!")
+                    st.success(f"🎉 {short_title} {'draft' if is_draft else 'PDF'} generated and field values verified!")
                 except Exception as exc:
-                    st.error(f"Could not generate {title}: {exc}")
+                    st.error(f"Could not generate {short_title}: {exc}")
             if result_key in st.session_state:
-                st.download_button(f"📥 Download editable {title} PDF", st.session_state[result_key],
-                    file_name=f"{'DRAFT_' if is_draft else ''}{title}_{safe_stem(claimant)}.pdf", mime="application/pdf", key=f"download_{result_key}", use_container_width=True)
+                st.download_button(
+                    f"📥 Download editable {short_title} PDF",
+                    st.session_state[result_key],
+                    file_name=f"{'DRAFT_' if is_draft else ''}{short_title.replace(' ', '_')}_{safe_stem(claimant)}.pdf",
+                    mime="application/pdf",
+                    key=f"download_{result_key}",
+                    use_container_width=True,
+                )
+            st.write("")
 
     else:
         # ----------------- UNIVERSAL FORM FILLER (T1-OVP / CUSTOM) -----------------
