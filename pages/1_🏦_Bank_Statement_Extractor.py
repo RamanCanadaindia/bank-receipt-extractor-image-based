@@ -863,7 +863,9 @@ if uploaded_files:
         col_ex1, col_ex1b, col_ex2, col_ex3 = st.columns(4)
         
         with col_ex1:
-            csv_data = df_edited.to_csv(index=False)
+            df_csv_fmt = df_edited.copy()
+            df_csv_fmt['date'] = pd.to_datetime(df_csv_fmt['date'], errors='coerce').dt.strftime('%d-%b-%Y')
+            csv_data = df_csv_fmt.to_csv(index=False)
             st.download_button(
                 label="📥 Download as CSV",
                 data=csv_data,
@@ -875,6 +877,7 @@ if uploaded_files:
         with col_ex1b:
             # Single-column CSV: one signed Amount column (debit = negative, credit = positive)
             df_single_col = df_edited.copy()
+            df_single_col['date'] = pd.to_datetime(df_single_col['date'], errors='coerce').dt.strftime('%d-%b-%Y')
             deb_vals = pd.to_numeric(df_single_col.get('debit', pd.Series()), errors='coerce').fillna(0)
             cred_vals = pd.to_numeric(df_single_col.get('credit', pd.Series()), errors='coerce').fillna(0)
             df_single_col['amount'] = (cred_vals - deb_vals).round(2)
