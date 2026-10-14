@@ -149,6 +149,10 @@ def parse_digital_text(text_pages):
         r"^([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$",
         re.IGNORECASE
     )
+    # Pattern 4: Date with slashes/dashes and 4-digit year (e.g. Scotiabank '03/03/2026 CREDIT MEMO 79.00 965.50')
+    pattern_slash_date = re.compile(
+        r"^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
+    )
 
     from local_extractor import is_disclaimer_or_metadata, extract_statement_period
 
@@ -174,27 +178,19 @@ def parse_digital_text(text_pages):
                 day = f"{int(day_str):02d}"
                 date = f"{year_str}-{month}-{day}"
             else:
-                m_short = pattern_short_date.match(line)
-                if m_short:
-                    month_str, day_str, desc, amount1, amount2, balance_str = m_short.groups()
-                    if month_str.capitalize() not in months_map:
-                        continue
-                    month = months_map.get(month_str.capitalize(), "01")
-                    day = f"{int(day_str):02d}"
-                    m_int = int(month)
-                    if start_month <= end_month:
-                        yr = start_year
-                    else:
-                        yr = start_year if m_int >= start_month else end_year
-                    date = f"{yr}-{month}-{day}"
+                m_slash = pattern_slash_date.match(line)
+                if m_slash:
+                    p1, p2, yr_str, desc, amount1, amount2, balance_str = m_slash.groups()
+                    n1, n2 = int(p1), int(p2)
+                    m_num, d_num = (n2, n1) if n1 > 12 else (n1, n2)
+                    date = f"{yr_str}-{m_num:02d}-{d_num:02d}"
                 else:
-                    m_cc = pattern_cc_date.match(line)
-                    if m_cc:
-                        month_str, day_str, desc, amount1, cr_flag = m_cc.groups()
-                        m_cap = month_str.capitalize()[:3]
-                        if m_cap not in months_map:
+                    m_short = pattern_short_date.match(line)
+                    if m_short:
+                        month_str, day_str, desc, amount1, amount2, balance_str = m_short.groups()
+                        if month_str.capitalize() not in months_map:
                             continue
-                        month = months_map[m_cap]
+                        month = months_map.get(month_str.capitalize(), "01")
                         day = f"{int(day_str):02d}"
                         m_int = int(month)
                         if start_month <= end_month:
@@ -202,16 +198,31 @@ def parse_digital_text(text_pages):
                         else:
                             yr = start_year if m_int >= start_month else end_year
                         date = f"{yr}-{month}-{day}"
-                        amount2 = None
-                        balance_str = None
                     else:
-                        continue
+                        m_cc = pattern_cc_date.match(line)
+                        if m_cc:
+                            month_str, day_str, desc, amount1, cr_flag = m_cc.groups()
+                            m_cap = month_str.capitalize()[:3]
+                            if m_cap not in months_map:
+                                continue
+                            month = months_map[m_cap]
+                            day = f"{int(day_str):02d}"
+                            m_int = int(month)
+                            if start_month <= end_month:
+                                yr = start_year
+                            else:
+                                yr = start_year if m_int >= start_month else end_year
+                            date = f"{yr}-{month}-{day}"
+                            amount2 = None
+                            balance_str = None
+                        else:
+                            continue
 
             # Skip summary/opening/closing lines and footers
             if is_disclaimer_or_metadata(desc):
                 continue
             desc_clean = desc.lower().strip()
-            if "opening balance" in desc_clean or "closing balance" in desc_clean or "closing totals" in desc_clean:
+            if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals")):
                 continue
 
             bal_val = float(balance_str.replace("$", "").replace(",", "")) if balance_str else None

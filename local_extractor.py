@@ -48,6 +48,8 @@ def detect_bank(pdf_path):
         return "Tangerine"
     if "vancity" in text_lower or "vancouver city savings" in text_lower or re.search(r'v\s*a\s*n\s*c\s*i\s*t\s*y', text_lower):
         return "Vancity"
+    if "scotiabank" in text_lower or "bank of nova scotia" in text_lower or "scotia" in text_lower:
+        return "Scotiabank"
         
     # Check filename as fallback
     filename = ""
@@ -62,6 +64,7 @@ def detect_bank(pdf_path):
     if "cibc" in filename: return "CIBC"
     if "tangerine" in filename: return "Tangerine"
     if "vancity" in filename or "vcty" in filename: return "Vancity"
+    if "scotia" in filename: return "Scotiabank"
     
     return "Standard"
 
@@ -146,13 +149,29 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
     
     if clean_str.isdigit():
         return None, None
+        
+    # Check direct MM/DD/YYYY or DD/MM/YYYY formats (e.g. Scotiabank 02/27/2026)
+    m_full_slash = re.match(r'^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})$', clean_str)
+    if m_full_slash:
+        p1, p2, yr = m_full_slash.groups()
+        n1, n2, y_int = int(p1), int(p2), int(yr)
+        if n1 > 12:  # DD/MM/YYYY
+            m_num, d_num = n2, n1
+        else:  # MM/DD/YYYY
+            m_num, d_num = n1, n2
+        return f"{y_int}-{m_num:02d}-{d_num:02d}", m_num
+
+    m_iso = re.match(r'^(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})$', clean_str)
+    if m_iso:
+        yr, m_val, d_val = m_iso.groups()
+        return f"{int(yr)}-{int(m_val):02d}-{int(d_val):02d}", int(m_val)
     
     # Check if a 4-digit year is in the string
     year_match = re.search(r'\b(20\d{2}|19\d{2})\b', clean_str)
     year = None
     if year_match:
         year = int(year_match.group(1))
-        clean_str = re.sub(r'\b(20\d{2}|19\d{2})\b', '', clean_str).strip()
+        clean_str = re.sub(r'\b(20\d{2}|19\d{2})\b', '', clean_str).strip().strip("/- ")
         
     # Check for combined Month Day format (e.g., "Jan02"). Some digitally
     # generated BMO statements omit the visual space between these columns.
@@ -405,7 +424,26 @@ def is_disclaimer_or_metadata(desc_text):
         r'www\.bmo\.com',
         r'www\.rbc\.com',
         r'www\.td\.com',
+        r'www\.scotiabank\.com',
         r'transaction details',
+        r'no\.\s*of\s*debits',
+        r'no\.\s*of\s*credits',
+        r'total\s*amount\s*-\s*debits',
+        r'total\s*amount\s*-\s*credits',
+        r'uncollected\s*fees',
+        r'odi\s*owing',
+        r'please\s*examine\s*this\s*statement',
+        r'statement\s*of:\s*service\s*charge',
+        r'statement\s*of:',
+        r'item\s*volume\s*rate\s*charge',
+        r'transaction\s*fees\s*tier',
+        r'total\s*service\s*charges',
+        r'gst\s*registration\s*no',
+        r'registered\s*trademark\s*of\s*the\s*bank\s*of\s*nova\s*scotia',
+        r'the\s*bank\s*of\s*nova\s*scotia',
+        r'scotiabank\s*financial\s*services',
+        r'business\s*banking\s*services\s*agreement',
+        r'this\s*is\s*your\s*official\s*account\s*statement',
         r'\bper-20\d{2}\b',
         r'^\d{4,}\s+per-\d+$',
         r'bankbook or paperless',
@@ -654,6 +692,10 @@ def extract_digital_pdf(pdf_path, bank_name):
                     deb_range = (300.0, 400.0)
                     cred_range = (400.0, 500.0)
                     bal_range = (500.0, 620.0)
+                elif bank_name == "Scotiabank":
+                    deb_range = (260.0, 390.0)
+                    cred_range = (390.0, 500.0)
+                    bal_range = (500.0, 620.0)
                 else:
                     # Standard fallback ranges
                     deb_range = (300.0, 400.0)
@@ -668,11 +710,11 @@ def extract_digital_pdf(pdf_path, bank_name):
                     if balance_x_coords:
                         bal_mid = (min(c[0] for c in balance_x_coords) + max(c[1] for c in balance_x_coords)) / 2.0
                         split_cb = (cred_mid + bal_mid) / 2.0
-                        deb_range = (280.0, split_dc)
+                        deb_range = (260.0, split_dc)
                         cred_range = (split_dc, split_cb)
                         bal_range = (split_cb, 620.0)
                     else:
-                        deb_range = (280.0, split_dc)
+                        deb_range = (260.0, split_dc)
                         cred_range = (split_dc, cred_mid + 50.0)
                 
                 # Group words into lines based on vertical coordinate (top)
@@ -726,6 +768,27 @@ def extract_digital_pdf(pdf_path, bank_name):
                             continue
                             
                     else:
+                        # Standard bank statements: stop extraction when footer or summary markers appear
+                        if any(marker in line_txt_lower for marker in [
+                            "no. of debits",
+                            "uncollected fees",
+                            "odi owing",
+                            "please examine this statement",
+                            "total service charges",
+                            "item volume rate charge",
+                            "transaction fees tier",
+                            "statement of: service charge",
+                            "closing totals",
+                            "end of statement",
+                            "cheques and deposits returned",
+                            "number of cheques or related",
+                            "number of cheques enclosed",
+                            "registered trademark of the bank of nova scotia",
+                            "the bank of nova scotia",
+                            "scotiabank financial services agreement"
+                        ]):
+                            active_extraction = False
+                            continue
                         active_extraction = True # Default to true for standard bank statements
                         
                     if not active_extraction:
@@ -947,7 +1010,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                 prev_date = date_parsed
                 prev_month_num = month_num
         else:
-            date_parsed = prev_date
+            if transactions and transactions[-1].get("page_num") == r.get("page_num"):
+                date_parsed = prev_date
             
         # Clean description whitespace and remove repeated spaces
         desc_cleaned = re.sub(r'\s+', ' ', str(desc)).strip()

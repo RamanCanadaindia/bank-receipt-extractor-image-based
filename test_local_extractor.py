@@ -313,5 +313,68 @@ May 31 Closing totals 10,500.72 10,518.50"""
                     self.assertTrue(recon["reconciled"], f"Failed reconciliation for {fname}: Diff={recon['difference']}")
                     self.assertAlmostEqual(recon["difference"], 0.0, places=2, msg=f"Non-zero diff for {fname}")
 
+    def test_scotiabank_detection_and_date_parsing(self):
+        """Test Scotiabank bank detection and MM/DD/YYYY date parsing."""
+        self.assertEqual(local_extractor.detect_bank("scotiabank_business_statement.pdf"), "Scotiabank")
+        self.assertEqual(local_extractor.detect_bank("scotia_chequing.pdf"), "Scotiabank")
+        
+        # Test full slash dates with 4-digit years
+        parsed, m = local_extractor.parse_date("02/27/2026", 2026, 2, 2026, 3)
+        self.assertEqual(parsed, "2026-02-27")
+        self.assertEqual(m, 2)
+        
+        parsed, m = local_extractor.parse_date("03/03/2026", 2026, 2, 2026, 3)
+        self.assertEqual(parsed, "2026-03-03")
+        self.assertEqual(m, 3)
+
+        parsed, m = local_extractor.parse_date("03/31/2026", 2026, 2, 2026, 3)
+        self.assertEqual(parsed, "2026-03-31")
+        self.assertEqual(m, 3)
+
+    def test_scotiabank_digital_parsing_and_reconciliation(self):
+        """Test Scotiabank digital text extraction and math reconciliation."""
+        import extract_statement
+        page1 = """Scotiabank
+Statement Of: Business Account Account Number: 51060 02040 13 From: Feb 27 2026 To: Mar 31 2026
+Account Summary for this Period:
+No. of Debits Total Amount - Debits No. of Credits Total Amount - Credits
+1 $10.00 8 $5,764.22
+Account Details:
+Date Description Withdrawals/Debits ($) Deposits/Credits ($) Balance ($)
+02/27/2026 BALANCE FORWARD 886.50
+03/03/2026 CREDIT MEMO SERVICE FEE REVERSAL 79.00 965.50
+03/03/2026 CREDIT MEMO 03285816 FREE INTERAC E-TRANSFER 1050.00 2,015.50
+03/10/2026 CREDIT MEMO 19595762 FREE INTERAC E-TRANSFER 840.00 2,855.50
+03/12/2026 CREDIT MEMO 25528592 FREE INTERAC E-TRANSFER 1155.00 4,010.50
+03/16/2026 CREDIT MEMO 34136459 FREE INTERAC E-TRANSFER 1550.22 5,560.72
+03/25/2026 CREDIT MEMO 56306916 FREE INTERAC E-TRANSFER 600.00 6,160.72
+03/30/2026 CREDIT MEMO 66617157 FREE INTERAC E-TRANSFER 375.00 6,535.72
+03/30/2026 CREDIT MEMO 68114862 FREE INTERAC E-TRANSFER 115.00 6,650.72
+03/31/2026 SERVICE CHARGE 10.00 6,640.72
+No. of Debits Total Amount - Debits No. of Credits Total Amount - Credits
+1 $10.00 8 $5,764.22
+Uncollected fees and/or ODI owing: $0.00
+Please examine this statement promptly.
+"""
+        txs = extract_statement.parse_digital_text([page1])
+        self.assertEqual(len(txs), 9)
+        
+        # Verify first and last transaction
+        self.assertEqual(txs[0]["date"], "2026-03-03")
+        self.assertEqual(txs[0]["credit"], 79.00)
+        self.assertEqual(txs[-1]["date"], "2026-03-31")
+        self.assertEqual(txs[-1]["debit"], 10.00)
+        
+        # Verify reconciliation against opening balance $886.50
+        opening_bal = 886.50
+        recon = local_extractor.reconcile_transactions(txs, opening_bal)
+        self.assertTrue(recon["reconciled"])
+        self.assertEqual(recon["opening_balance"], 886.50)
+        self.assertEqual(recon["total_deposits"], 5764.22)
+        self.assertEqual(recon["total_withdrawals"], 10.00)
+        self.assertEqual(recon["closing_balance"], 6640.72)
+        self.assertEqual(recon["difference"], 0.0)
+
 if __name__ == "__main__":
     unittest.main()
+
