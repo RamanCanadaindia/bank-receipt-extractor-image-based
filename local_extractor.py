@@ -410,6 +410,7 @@ def is_disclaimer_or_metadata(desc_text):
         r'foreign currency exchange',
         r'cibc account statement',
         r'account summary',
+        r'account\s*details:?',
         r'summary of account',
         r'branch transit number',
         r'closing balance on',
@@ -733,11 +734,18 @@ def extract_digital_pdf(pdf_path, bank_name):
                 
                 # Sort lines vertically from top to bottom
                 active_extraction = False
+                footer_reached = False
                 for top_val in sorted(lines_dict.keys()):
                     line_words = sorted(lines_dict[top_val], key=lambda x: x["x0"])
                     line_txt = " ".join([w["text"] for w in line_words]).strip()
                     line_txt_lower = line_txt.lower()
                     
+                    if footer_reached:
+                        continue
+                        
+                    if header_top is not None and top_val < (header_top - 2.0):
+                        continue
+                        
                     # 1. Detect start and end markers
                     if is_credit_card:
                         if (line_txt_lower.startswith("your payments") or 
@@ -787,14 +795,12 @@ def extract_digital_pdf(pdf_path, bank_name):
                             "the bank of nova scotia",
                             "scotiabank financial services agreement"
                         ]):
+                            footer_reached = True
                             active_extraction = False
                             continue
                         active_extraction = True # Default to true for standard bank statements
                         
                     if not active_extraction:
-                        continue
-                        
-                    if header_top is not None and top_val < (header_top - 2.0):
                         continue
                         
                     # Skip total and summary lines early before coordinate filtering
@@ -937,26 +943,45 @@ def extract_digital_pdf(pdf_path, bank_name):
             continue
             
         # Check if this row is a continuation row containing amounts for the previous transaction
+        deb_clean = debit_raw.replace("$", "").replace(",", "").strip() if debit_raw else ""
+        cred_clean = credit_raw.replace("$", "").replace(",", "").strip() if credit_raw else ""
+        bal_clean = balance_raw.replace("$", "").replace(",", "").strip() if balance_raw else ""
+        deb_clean = re.sub(r'cr', '', deb_clean, flags=re.IGNORECASE).strip()
+        cred_clean = re.sub(r'cr', '', cred_clean, flags=re.IGNORECASE).strip()
+        bal_clean = re.sub(r'cr', '', bal_clean, flags=re.IGNORECASE).strip()
+
         temp_debit = None
         temp_credit = None
         temp_balance = None
         try:
-            if debit_raw: temp_debit = float(debit_raw)
+            if deb_clean: temp_debit = float(deb_clean)
         except ValueError: pass
         try:
-            if credit_raw: temp_credit = float(credit_raw)
+            if cred_clean: temp_credit = float(cred_clean)
         except ValueError: pass
         try:
-            if balance_raw: temp_balance = float(balance_raw)
+            if bal_clean: temp_balance = float(bal_clean)
         except ValueError: pass
 
         if not date_raw and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
             if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None and transactions[-1].get("page_num") == r["page_num"]:
                 if desc:
                     transactions[-1]["description"] += " " + desc
-                transactions[-1]["debit"] = temp_debit
-                transactions[-1]["credit"] = temp_credit
-                transactions[-1]["balance"] = temp_balance
+                if is_credit_card and temp_balance is not None:
+                    val_amt = temp_balance
+                    desc_lower = transactions[-1]["description"].lower()
+                    is_cr = "CR" in balance_raw.upper() or desc_lower.endswith(" cr") or " cr " in desc_lower
+                    if "payment" in desc_lower or "thank you" in desc_lower or "paiment" in desc_lower or "refund" in desc_lower or "credit" in desc_lower or "rebate" in desc_lower or is_cr or val_amt < 0:
+                        transactions[-1]["credit"] = abs(val_amt)
+                        transactions[-1]["debit"] = None
+                    else:
+                        transactions[-1]["debit"] = val_amt
+                        transactions[-1]["credit"] = None
+                    transactions[-1]["balance"] = None
+                else:
+                    transactions[-1]["debit"] = temp_debit
+                    transactions[-1]["credit"] = temp_credit
+                    transactions[-1]["balance"] = temp_balance
                 continue
 
         # Parse numeric values
@@ -1038,8 +1063,8 @@ def extract_digital_pdf(pdf_path, bank_name):
         # Clean final trailing characters
         desc_cleaned = re.sub(r'\s+', ' ', desc_cleaned).strip()
         
-        # Strict validation: transaction must have date, description, and at least one amount
-        if date_parsed and desc_cleaned and (debit is not None or credit is not None or balance is not None):
+        # Allow appending transaction if date and description are present; amounts may follow on continuation rows
+        if date_parsed and desc_cleaned:
             transactions.append({
                 "date": date_parsed,
                 "description": desc_cleaned,

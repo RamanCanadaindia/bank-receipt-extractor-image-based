@@ -375,6 +375,141 @@ Please examine this statement promptly.
         self.assertEqual(recon["closing_balance"], 6640.72)
         self.assertEqual(recon["difference"], 0.0)
 
+    def test_scotiabank_february_multiline_statement(self):
+        """Test Scotiabank statement where transaction description and amounts span multiple lines."""
+        import extract_statement
+        page1 = """12040 NORDEL WAY 51060
+SURREY BC V3W 1P6
+501-7525
+1 of 2
+CLEAR EDGE GLASS AND SHOWER DO
+12470 80 AVE
+SURREY BC V3W3A5
+Statement Of: Account Number: From: To:
+Business Account 51060 02040 13 Feb 03 2026 Feb 27 2026
+Account Summary for this Period:
+No. of Debits Total Amount - Debits No. of Credits Total Amount - Credits
+1 $7.25 2 $893.75
+Account Details:
+Date Description Withdrawals/Debits ($) Deposits/Credits ($) Balance ($)
+02/03/2026 BALANCE FORWARD 0.00
+02/03/2026 DEPOSIT 500.00 500.00
+02/24/2026 CREDIT MEMO
+ 83544783
+ FREE INTERAC E-TRANSFER
+393.75 893.75
+02/27/2026 SERVICE CHARGE 7.25 886.50
+No. of Debits Total Amount - Debits No. of Credits Total Amount - Credits
+1 $7.25 2 $893.75
+Uncollected fees and/or ODI owing: $0.00
+Please examine this statement promptly.
+"""
+        page2 = """Statement Of: Service Charge 51060 02040 13 Feb 03 2026 Feb 27 2026
+Item Volume Rate Charge ($)
+Transaction Fees Tier 1 2 1.25 2.50
+Total Service Charges $7.25
+"""
+        txs = extract_statement.parse_digital_text([page1, page2])
+        self.assertEqual(len(txs), 3)
+
+        self.assertEqual(txs[0]["date"], "2026-02-03")
+        self.assertEqual(txs[0]["credit"], 500.00)
+        self.assertEqual(txs[0]["balance"], 500.00)
+
+        self.assertEqual(txs[1]["date"], "2026-02-24")
+        self.assertEqual(txs[1]["description"], "CREDIT MEMO 83544783 FREE INTERAC E-TRANSFER")
+        self.assertEqual(txs[1]["credit"], 393.75)
+        self.assertEqual(txs[1]["balance"], 893.75)
+
+        self.assertEqual(txs[2]["date"], "2026-02-27")
+        self.assertEqual(txs[2]["debit"], 7.25)
+        self.assertEqual(txs[2]["balance"], 886.50)
+
+        # Reconcile against opening balance 0.00
+        recon = local_extractor.reconcile_transactions(txs, 0.00)
+        self.assertTrue(recon["reconciled"])
+        self.assertEqual(recon["opening_balance"], 0.00)
+        self.assertEqual(recon["total_deposits"], 893.75)
+        self.assertEqual(recon["total_withdrawals"], 7.25)
+        self.assertEqual(recon["closing_balance"], 886.50)
+
+    def test_local_extractor_multiline_raw_rows(self):
+        """Test local_extractor raw_rows step 3 multiline merging and amount resolution."""
+        raw_rows = [
+            {"page_num": 1, "row_idx": 0, "statement_order": 0, "date_raw": "02/03/2026", "description": "BALANCE FORWARD", "debit_raw": "", "credit_raw": "", "balance_raw": "0.00"},
+            {"page_num": 1, "row_idx": 1, "statement_order": 1, "date_raw": "02/03/2026", "description": "DEPOSIT", "debit_raw": "", "credit_raw": "500.00", "balance_raw": "500.00"},
+            {"page_num": 1, "row_idx": 2, "statement_order": 2, "date_raw": "02/24/2026", "description": "CREDIT MEMO", "debit_raw": "", "credit_raw": "", "balance_raw": ""},
+            {"page_num": 1, "row_idx": 3, "statement_order": 3, "date_raw": "", "description": "83544783", "debit_raw": "", "credit_raw": "", "balance_raw": ""},
+            {"page_num": 1, "row_idx": 4, "statement_order": 4, "date_raw": "", "description": "FREE INTERAC E-TRANSFER", "debit_raw": "", "credit_raw": "", "balance_raw": ""},
+            {"page_num": 1, "row_idx": 5, "statement_order": 5, "date_raw": "", "description": "", "debit_raw": "", "credit_raw": "393.75", "balance_raw": "893.75"},
+            {"page_num": 1, "row_idx": 6, "statement_order": 6, "date_raw": "02/27/2026", "description": "SERVICE CHARGE", "debit_raw": "7.25", "credit_raw": "", "balance_raw": "886.50"},
+        ]
+        
+        start_year, start_month, end_year, end_month = 2026, 2, 2026, 2
+        is_credit_card = False
+        transactions = []
+        prev_date = None
+
+        for r in raw_rows:
+            date_raw = r["date_raw"]
+            desc = r["description"]
+            debit_raw = r["debit_raw"]
+            credit_raw = r["credit_raw"]
+            balance_raw = r["balance_raw"]
+            
+            desc_lower = desc.lower().strip()
+            if "balance forward" in desc_lower:
+                continue
+
+            if not date_raw and not debit_raw and not credit_raw and not balance_raw:
+                if transactions and desc and transactions[-1].get("page_num") == r["page_num"]:
+                    transactions[-1]["description"] += " " + desc
+                continue
+
+            deb_clean = debit_raw.replace("$", "").replace(",", "").strip() if debit_raw else ""
+            cred_clean = credit_raw.replace("$", "").replace(",", "").strip() if credit_raw else ""
+            bal_clean = balance_raw.replace("$", "").replace(",", "").strip() if balance_raw else ""
+
+            temp_debit = float(deb_clean) if deb_clean else None
+            temp_credit = float(cred_clean) if cred_clean else None
+            temp_balance = float(bal_clean) if bal_clean else None
+
+            if not date_raw and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
+                if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None and transactions[-1].get("page_num") == r["page_num"]:
+                    if desc:
+                        transactions[-1]["description"] += " " + desc
+                    transactions[-1]["debit"] = temp_debit
+                    transactions[-1]["credit"] = temp_credit
+                    transactions[-1]["balance"] = temp_balance
+                    continue
+
+            date_parsed = None
+            if date_raw:
+                date_parsed, month_num = local_extractor.parse_date(date_raw, start_year, start_month, end_year, end_month)
+                if date_parsed:
+                    prev_date = date_parsed
+            else:
+                if transactions and transactions[-1].get("page_num") == r.get("page_num"):
+                    date_parsed = prev_date
+
+            desc_cleaned = desc.strip()
+            if date_parsed and desc_cleaned:
+                transactions.append({
+                    "date": date_parsed,
+                    "description": desc_cleaned,
+                    "debit": temp_debit,
+                    "credit": temp_credit,
+                    "balance": temp_balance,
+                    "page_num": r.get("page_num", 1)
+                })
+
+        final_txs = [tx for tx in transactions if (tx["debit"] is not None or tx["credit"] is not None or tx["balance"] is not None)]
+        self.assertEqual(len(final_txs), 3)
+        self.assertEqual(final_txs[1]["description"], "CREDIT MEMO 83544783 FREE INTERAC E-TRANSFER")
+        self.assertEqual(final_txs[1]["credit"], 393.75)
+        self.assertEqual(final_txs[1]["balance"], 893.75)
+
 if __name__ == "__main__":
     unittest.main()
+
 

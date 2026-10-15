@@ -154,10 +154,47 @@ def parse_digital_text(text_pages):
         r"^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
     )
 
+    # Patterns for lines that start with Date but DO NOT have amounts on the same line
+    pattern_slash_date_start = re.compile(
+        r"^(\d{1,2})[/\-](\d{1,2})[/\-](\d{4})\s*(.*)$"
+    )
+    pattern_full_date_start = re.compile(
+        r"^([A-Z][a-z]{2})\s+(\d{1,2}),\s+(\d{4})\s*(.*)$"
+    )
+    pattern_short_date_start = re.compile(
+        r"^([A-Za-z]{3})\s+(\d{1,2})\s*(.*)$"
+    )
+
+    # Continuation patterns for trailing amounts
+    pattern_trailing_two_amounts = re.compile(
+        r"^(.*?)\s*([\d,]+\.\d{2})\s+(\$?[\d,]+\.\d{2})$"
+    )
+    pattern_trailing_one_amount = re.compile(
+        r"^(.*?)\s*([\d,]+\.\d{2})\s*(CR)?$",
+        re.IGNORECASE
+    )
+
     from local_extractor import is_disclaimer_or_metadata, extract_statement_period
 
     start_year, start_month, end_year, end_month = extract_statement_period(full_text)
     detected_year = str(start_year)
+
+    current_tx = None
+
+    def finalize_tx(tx):
+        if not tx:
+            return
+        desc = tx.get("description", "").strip()
+        if is_disclaimer_or_metadata(desc):
+            return
+        desc_clean = desc.lower()
+        if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals")):
+            return
+        # Must have at least one valid amount
+        if tx.get("debit") is not None or tx.get("credit") is not None or tx.get("balance") is not None:
+            tx["description"] = re.sub(r'\s+', ' ', desc).strip()
+            tx["statement_order"] = len(transactions)
+            transactions.append(tx)
 
     for page_num, text in enumerate(text_pages, 1):
         lines = text.split("\n")
@@ -167,11 +204,28 @@ def parse_digital_text(text_pages):
                 continue
                 
             if is_disclaimer_or_metadata(line):
+                finalize_tx(current_tx)
+                current_tx = None
                 continue
 
+            # Check footer / summary stop markers
+            line_lower = line.lower()
+            if any(marker in line_lower for marker in [
+                "no. of debits", "uncollected fees", "odi owing", "please examine this statement",
+                "total service charges", "statement of: service charge", "closing totals", "end of statement"
+            ]):
+                finalize_tx(current_tx)
+                current_tx = None
+                continue
+
+            # 1. Try matching lines with Date AND Amount
             m_full = pattern_full_date.match(line)
+            m_slash = None
+            m_short = None
             m_cc = None
             cr_flag = None
+            date = None
+
             if m_full:
                 month_str, day_str, year_str, desc, amount1, amount2, balance_str = m_full.groups()
                 month = months_map.get(month_str.capitalize(), "01")
@@ -186,85 +240,166 @@ def parse_digital_text(text_pages):
                     date = f"{yr_str}-{m_num:02d}-{d_num:02d}"
                 else:
                     m_short = pattern_short_date.match(line)
-                    if m_short:
+                    if m_short and m_short.group(1).capitalize() in months_map:
                         month_str, day_str, desc, amount1, amount2, balance_str = m_short.groups()
-                        if month_str.capitalize() not in months_map:
-                            continue
                         month = months_map.get(month_str.capitalize(), "01")
                         day = f"{int(day_str):02d}"
                         m_int = int(month)
-                        if start_month <= end_month:
-                            yr = start_year
-                        else:
-                            yr = start_year if m_int >= start_month else end_year
+                        yr = start_year if (start_month <= end_month or m_int >= start_month) else end_year
                         date = f"{yr}-{month}-{day}"
                     else:
                         m_cc = pattern_cc_date.match(line)
-                        if m_cc:
+                        if m_cc and m_cc.group(1).capitalize()[:3] in months_map:
                             month_str, day_str, desc, amount1, cr_flag = m_cc.groups()
-                            m_cap = month_str.capitalize()[:3]
-                            if m_cap not in months_map:
-                                continue
-                            month = months_map[m_cap]
+                            month = months_map[month_str.capitalize()[:3]]
                             day = f"{int(day_str):02d}"
                             m_int = int(month)
-                            if start_month <= end_month:
-                                yr = start_year
-                            else:
-                                yr = start_year if m_int >= start_month else end_year
+                            yr = start_year if (start_month <= end_month or m_int >= start_month) else end_year
                             date = f"{yr}-{month}-{day}"
                             amount2 = None
                             balance_str = None
-                        else:
-                            continue
 
-            # Skip summary/opening/closing lines and footers
-            if is_disclaimer_or_metadata(desc):
-                continue
-            desc_clean = desc.lower().strip()
-            if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals")):
-                continue
+            if date:
+                # We matched a line with date and amounts
+                finalize_tx(current_tx)
+                current_tx = None
 
-            bal_val = float(balance_str.replace("$", "").replace(",", "")) if balance_str else None
-            val1 = float(amount1.replace(",", "")) if amount1 else None
-            val2 = float(amount2.replace(",", "")) if amount2 else None
-            
-            debit = None
-            credit = None
-            if val1 is not None and val2 is not None:
-                debit = val1
-                credit = val2
-            elif val1 is not None:
-                if m_cc:
-                    if cr_flag or re.search(r'\bcr\b', desc_clean) or any(k in desc_clean for k in ("payment received", "pymt received", "refund", "rebate")):
-                        credit = val1
-                        debit = None
-                    else:
-                        debit = val1
-                        credit = None
-                else:
-                    is_known_credit = bool(re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean))
-                    if is_known_credit:
-                        credit = val1
-                        debit = None
-                    else:
-                        debit = val1
-                        credit = None
-            elif bal_val is not None:
+                # Skip opening / balance forward / closing
+                desc_clean = desc.lower().strip()
+                if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals")):
+                    continue
+
+                bal_val = float(balance_str.replace("$", "").replace(",", "")) if balance_str else None
+                val1 = float(amount1.replace(",", "")) if amount1 else None
+                val2 = float(amount2.replace(",", "")) if amount2 else None
+                
                 debit = None
                 credit = None
-                
-            transactions.append({
-                "date": date,
-                "description": desc.strip(),
-                "debit": debit,
-                "credit": credit,
-                "balance": bal_val,
-                "page_num": page_num,
-                "row_idx": line_idx,
-                "statement_order": len(transactions)
-            })
-            
+                if val1 is not None and val2 is not None:
+                    debit = val1
+                    credit = val2
+                elif val1 is not None:
+                    if m_cc:
+                        if cr_flag or re.search(r'\bcr\b', desc_clean) or any(k in desc_clean for k in ("payment received", "pymt received", "refund", "rebate")):
+                            credit = val1
+                        else:
+                            debit = val1
+                    else:
+                        is_known_credit = bool(re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean))
+                        if is_known_credit:
+                            credit = val1
+                        else:
+                            debit = val1
+
+                current_tx = {
+                    "date": date,
+                    "description": desc.strip(),
+                    "debit": debit,
+                    "credit": credit,
+                    "balance": bal_val,
+                    "page_num": page_num,
+                    "row_idx": line_idx
+                }
+                continue
+
+            # 2. Try matching lines that start with Date but lack amounts
+            m_start_slash = pattern_slash_date_start.match(line)
+            date_start = None
+            desc_start = ""
+
+            if m_start_slash:
+                p1, p2, yr_str, desc_start = m_start_slash.groups()
+                n1, n2 = int(p1), int(p2)
+                m_num, d_num = (n2, n1) if n1 > 12 else (n1, n2)
+                date_start = f"{yr_str}-{m_num:02d}-{d_num:02d}"
+            else:
+                m_start_full = pattern_full_date_start.match(line)
+                if m_start_full and m_start_full.group(1).capitalize() in months_map:
+                    month_str, day_str, year_str, desc_start = m_start_full.groups()
+                    month = months_map[month_str.capitalize()]
+                    date_start = f"{year_str}-{month}-{int(day_str):02d}"
+                else:
+                    m_start_short = pattern_short_date_start.match(line)
+                    if m_start_short and m_start_short.group(1).capitalize() in months_map:
+                        month_str, day_str, desc_start = m_start_short.groups()
+                        month = months_map[month_str.capitalize()]
+                        m_int = int(month)
+                        yr = start_year if (start_month <= end_month or m_int >= start_month) else end_year
+                        date_start = f"{yr}-{month}-{int(day_str):02d}"
+
+            if date_start:
+                finalize_tx(current_tx)
+                current_tx = {
+                    "date": date_start,
+                    "description": desc_start.strip(),
+                    "debit": None,
+                    "credit": None,
+                    "balance": None,
+                    "page_num": page_num,
+                    "row_idx": line_idx
+                }
+                continue
+
+            # 3. Handle continuation lines (when current_tx exists)
+            if current_tx:
+                # If current_tx needs amounts, check if this line contains amounts
+                if current_tx["debit"] is None and current_tx["credit"] is None and current_tx["balance"] is None:
+                    m_two = pattern_trailing_two_amounts.match(line)
+                    if m_two:
+                        extra_desc, a1, a2 = m_two.groups()
+                        if extra_desc.strip():
+                            current_tx["description"] += " " + extra_desc.strip()
+                        val1 = float(a1.replace(",", ""))
+                        bal_val = float(a2.replace("$", "").replace(",", ""))
+                        desc_clean = current_tx["description"].lower()
+                        if re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean):
+                            current_tx["credit"] = val1
+                        else:
+                            current_tx["debit"] = val1
+                        current_tx["balance"] = bal_val
+                        continue
+
+                    m_one = pattern_trailing_one_amount.match(line)
+                    if m_one:
+                        extra_desc, a1, cr_flag = m_one.groups()
+                        val1 = float(a1.replace(",", ""))
+                        if extra_desc.strip():
+                            current_tx["description"] += " " + extra_desc.strip()
+                        desc_clean = current_tx["description"].lower()
+                        if cr_flag or re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean):
+                            current_tx["credit"] = val1
+                        else:
+                            current_tx["debit"] = val1
+                        continue
+
+                # If current_tx already has amounts, check if this line is a new transaction on the same date (e.g. date omitted)
+                else:
+                    m_two = pattern_trailing_two_amounts.match(line)
+                    if m_two and m_two.group(1).strip():
+                        extra_desc, a1, a2 = m_two.groups()
+                        val1 = float(a1.replace(",", ""))
+                        bal_val = float(a2.replace("$", "").replace(",", ""))
+                        finalize_tx(current_tx)
+                        desc_clean = extra_desc.lower()
+                        cred = val1 if re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean) else None
+                        deb = val1 if cred is None else None
+                        current_tx = {
+                            "date": current_tx["date"],
+                            "description": extra_desc.strip(),
+                            "debit": deb,
+                            "credit": cred,
+                            "balance": bal_val,
+                            "page_num": page_num,
+                            "row_idx": line_idx
+                        }
+                        continue
+
+                # Otherwise, it is text description continuation
+                current_tx["description"] += " " + line.strip()
+
+        finalize_tx(current_tx)
+        current_tx = None
+
     return transactions
 
 def render_pdf_pages(pdf_path):
