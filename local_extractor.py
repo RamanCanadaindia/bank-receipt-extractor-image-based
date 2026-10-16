@@ -296,7 +296,7 @@ def looks_like_date_word(word):
     w_clean = re.sub(r'(.)\1', r'\1', w)
     
     if w_clean.isdigit():
-        if len(w_clean) == 4 and (w_clean.startswith("19") or w_clean.startswith("20")):
+        if len(w_clean) == 3 or (len(w_clean) == 4 and (w_clean.startswith("19") or w_clean.startswith("20"))):
             return False
         return True
         
@@ -427,6 +427,16 @@ def is_disclaimer_or_metadata(desc_text):
         r'www\.td\.com',
         r'www\.scotiabank\.com',
         r'transaction details',
+        r'sub-?total\s*(credits|debits)?',
+        r'interest\s*charges\s*posted',
+        r'special\s*offers\s*summary',
+        r'please\s*detach\s*here',
+        r'please\s*return\s*this\s*stub',
+        r'please\s*do\s*not\s*write\s*in\s*this\s*space',
+        r'cash\s*advances/cheques',
+        r'transactions\s*since\s*your\s*last\s*statement',
+        r'information\s*about\s*your\s*scotiabank\s*statement',
+        r'estimate\s*of\s*the\s*time\s*it\s*will\s*take\s*to\s*pay',
         r'no\.\s*of\s*debits',
         r'no\.\s*of\s*credits',
         r'total\s*amount\s*-\s*debits',
@@ -636,10 +646,10 @@ def extract_digital_pdf(pdf_path, bank_name):
                 desc_x0 = None
                 for w in words:
                     w_text = w["text"].lower()
-                    if w_text in ("date", "description"):
+                    if w_text in ("date", "description", "details"):
                         if header_top is None:
                             header_top = w["top"]
-                    if w_text == "description":
+                    if w_text in ("description", "details"):
                         if desc_x0 is None:
                             desc_x0 = w["x0"]
                     if w_text.startswith("post"):
@@ -766,13 +776,22 @@ def extract_digital_pdf(pdf_path, bank_name):
                             "total for card",
                             "pre-authorized debit",
                             "important information",
-                            "service disruption"
+                            "service disruption",
+                            "sub-total credits",
+                            "sub-total debits",
+                            "subtotal credits",
+                            "subtotal debits",
+                            "interest charges posted",
+                            "special offers summary",
+                            "please detach here",
+                            "please return this stub",
+                            "information about your scotiabank statement"
                         ]):
                             active_extraction = False
                             continue
 
-                        # Subtotal lines should be skipped, but should not stop extraction of subsequent cards
-                        if "subtotal for" in line_txt_lower or line_txt_lower.startswith("card number:"):
+                        # Subtotal lines and cardholder number headers should be skipped, but should not stop extraction
+                        if "subtotal for" in line_txt_lower or "sub-total" in line_txt_lower or line_txt_lower.startswith("card number:") or re.search(r'\b\d{4}\s+[x\*]{4}\s+[x\*]{4}\s+\d{4}\b', line_txt_lower):
                             continue
                             
                     else:

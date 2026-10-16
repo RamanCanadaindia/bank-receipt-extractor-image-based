@@ -144,9 +144,9 @@ def parse_digital_text(text_pages):
     pattern_short_date = re.compile(
         r"^([A-Za-z]{3})\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?\s*([\d,]+\.\d{2})?\s*(\$?[\d,]+\.\d{2})$"
     )
-    # Pattern 3: Credit Card with Trans Date and optional Posting Date, description, amount, and optional CR
+    # Pattern 3: Credit Card with optional Ref Number, Trans Date, optional Posting Date, description, amount, optional CR
     pattern_cc_date = re.compile(
-        r"^([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$",
+        r"^(?:(\d{1,4})\s+)?([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$",
         re.IGNORECASE
     )
     # Pattern 4: Date with slashes/dashes and 4-digit year (e.g. Scotiabank '03/03/2026 CREDIT MEMO 79.00 965.50')
@@ -163,6 +163,10 @@ def parse_digital_text(text_pages):
     )
     pattern_short_date_start = re.compile(
         r"^([A-Za-z]{3})\s+(\d{1,2})\s*(.*)$"
+    )
+    pattern_cc_date_start = re.compile(
+        r"^(?:(\d{1,4})\s+)?([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s*(.*)$",
+        re.IGNORECASE
     )
 
     # Continuation patterns for trailing amounts
@@ -188,7 +192,7 @@ def parse_digital_text(text_pages):
         if is_disclaimer_or_metadata(desc):
             return
         desc_clean = desc.lower()
-        if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals")):
+        if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals", "sub-total", "subtotal")):
             return
         # Must have at least one valid amount
         if tx.get("debit") is not None or tx.get("credit") is not None or tx.get("balance") is not None:
@@ -212,7 +216,11 @@ def parse_digital_text(text_pages):
             line_lower = line.lower()
             if any(marker in line_lower for marker in [
                 "no. of debits", "uncollected fees", "odi owing", "please examine this statement",
-                "total service charges", "statement of: service charge", "closing totals", "end of statement"
+                "total service charges", "statement of: service charge", "closing totals", "end of statement",
+                "sub-total credits", "sub-total debits", "subtotal credits", "subtotal debits",
+                "interest charges posted", "special offers summary", "please detach here",
+                "please return this stub", "estimate of the time it will take to pay",
+                "information about your scotiabank statement"
             ]):
                 finalize_tx(current_tx)
                 current_tx = None
@@ -249,8 +257,8 @@ def parse_digital_text(text_pages):
                         date = f"{yr}-{month}-{day}"
                     else:
                         m_cc = pattern_cc_date.match(line)
-                        if m_cc and m_cc.group(1).capitalize()[:3] in months_map:
-                            month_str, day_str, desc, amount1, cr_flag = m_cc.groups()
+                        if m_cc and m_cc.group(2).capitalize()[:3] in months_map:
+                            ref_num, month_str, day_str, desc, amount1, cr_flag = m_cc.groups()
                             month = months_map[month_str.capitalize()[:3]]
                             day = f"{int(day_str):02d}"
                             m_int = int(month)
@@ -266,7 +274,7 @@ def parse_digital_text(text_pages):
 
                 # Skip opening / balance forward / closing
                 desc_clean = desc.lower().strip()
-                if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals")):
+                if any(k in desc_clean for k in ("opening balance", "balance forward", "solde reporté", "closing balance", "closing totals", "sub-total", "subtotal")):
                     continue
 
                 bal_val = float(balance_str.replace("$", "").replace(",", "")) if balance_str else None
@@ -326,6 +334,14 @@ def parse_digital_text(text_pages):
                         m_int = int(month)
                         yr = start_year if (start_month <= end_month or m_int >= start_month) else end_year
                         date_start = f"{yr}-{month}-{int(day_str):02d}"
+                    else:
+                        m_start_cc = pattern_cc_date_start.match(line)
+                        if m_start_cc and m_start_cc.group(2).capitalize()[:3] in months_map:
+                            ref_num, month_str, day_str, desc_start = m_start_cc.groups()
+                            month = months_map[month_str.capitalize()[:3]]
+                            m_int = int(month)
+                            yr = start_year if (start_month <= end_month or m_int >= start_month) else end_year
+                            date_start = f"{yr}-{month}-{int(day_str):02d}"
 
             if date_start:
                 finalize_tx(current_tx)

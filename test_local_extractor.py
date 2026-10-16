@@ -509,6 +509,50 @@ Total Service Charges $7.25
         self.assertEqual(final_txs[1]["credit"], 393.75)
         self.assertEqual(final_txs[1]["balance"], 893.75)
 
+    def test_scotiabank_visa_statement(self):
+        """Test Scotiabank Momentum for business VISA card statement extraction."""
+        import extract_statement
+        page1 = """Scotia Momentum®
+for business VISA* card
+Statement Period Feb 3, 2026 - Feb 21, 2026
+Statement Date Feb 21, 2026
+Account # 4537 XXXX XXXX 5601
+Previous balance, Feb 3/26 $0.00
+Payments/credits - $0.00
+Purchases/charges + $108.00
+Account Balance‡‡ = $108.00 
+Transactions since your last statement
+REF.# TRANS. DATE POST DATE DETAILS AMOUNT($)
+JUGRAJ SINGH JUGRAJSINGH - 4537 XXXX XXXX 5601 
+001 Feb 21 Feb 21 ANNUAL FEE 79.00
+002 Feb 21 Feb 21 ADDITIONAL CARD FEE 29.00
+SUB-TOTAL CREDITS - 4537 XXXX XXXX 5601 $0.00
+SUB-TOTAL DEBITS - 4537 XXXX XXXX 5601 $108.00
+Interest charges posted on statement date
+Cash advances/cheques $0.00
+"""
+        page2 = """INFORMATION ABOUT YOUR SCOTIABANK STATEMENT
+1. PAYMENTS: The TOTAL MINIMUM PAYMENT on this statement includes your current minimum payment
+"""
+        page3 = """Special offers summary during this statement period
+DESCRIPTION INTEREST CHARGED ENDING BALANCE PROMOTION EXPIRY
+2.99% 6 MONS CA FEE $0.00 $0.00 Sep 2026
+"""
+        page4 = """Please do not write in this space
+"""
+        txs = extract_statement.parse_digital_text([page1, page2, page3, page4])
+        self.assertEqual(len(txs), 2)
+        self.assertEqual(txs[0]["date"], "2026-02-21")
+        self.assertEqual(txs[0]["description"], "ANNUAL FEE")
+        self.assertEqual(txs[0]["debit"], 79.00)
+        self.assertEqual(txs[1]["date"], "2026-02-21")
+        self.assertEqual(txs[1]["description"], "ADDITIONAL CARD FEE")
+        self.assertEqual(txs[1]["debit"], 29.00)
+
+        # Validate total charges
+        total_charges = sum(t["debit"] for t in txs)
+        self.assertEqual(total_charges, 108.00)
+
 if __name__ == "__main__":
     unittest.main()
 
