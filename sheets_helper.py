@@ -90,33 +90,39 @@ def get_spreadsheet(client, spreadsheet_id):
         try:
             return client.open(str(spreadsheet_id).strip())
         except Exception:
-            st.error(f"❌ Spreadsheet with ID '{cleaned_id}' not found or inaccessible.")
             if email:
-                st.warning(
-                    f"👉 **Did you share your sheet?**\n\n"
-                    f"Please open your Google Sheet, click **Share**, and invite this Service Account with **Editor** access:\n\n"
-                    f"`{email}`"
+                st.error(
+                    f"❌ **Error opening spreadsheet:** Spreadsheet not found or permission denied.\n\n"
+                    f"👉 **Please share your Google Sheet with this address (as Editor):**\n\n"
+                    f"`{email}`\n\n"
+                    f"*(Open your Google Sheet &rarr; Click **Share** &rarr; Add `{email}` as **Editor** &rarr; Click **Save**)*"
                 )
+            else:
+                st.error(f"❌ Spreadsheet with ID '{cleaned_id}' not found or inaccessible.")
             return None
     except gspread.exceptions.APIError as e:
         err_msg = str(e).strip() or (e.response.text if hasattr(e, 'response') else repr(e))
-        st.error(f"❌ Google API permission error when opening spreadsheet (`{cleaned_id}`): {err_msg}")
         if email:
-            st.warning(
-                f"👉 **Permission Denied (403/404):**\n\n"
-                f"Google Sheets requires you to share the document with the Service Account email:\n\n"
+            st.error(
+                f"❌ **Error opening spreadsheet:** Google API permission denied.\n\n"
+                f"👉 **Please share your Google Sheet with this address (as Editor):**\n\n"
                 f"`{email}`\n\n"
-                f"1. Open your Google Sheet in a browser tab.\n"
-                f"2. Click the top-right **Share** button.\n"
-                f"3. Paste `{email}` and set permissions to **Editor**.\n"
-                f"4. Click **Save** and click **Process & Send to Google Sheets** again."
+                f"*(Open your Google Sheet &rarr; Click **Share** &rarr; Add `{email}` as **Editor** &rarr; Click **Save**)*"
             )
+        else:
+            st.error(f"❌ Error opening spreadsheet: {err_msg}")
         return None
     except Exception as e:
         err_msg = str(e).strip() or repr(e)
-        st.error(f"❌ Error opening spreadsheet: {err_msg}")
         if email:
-            st.info(f"💡 Ensure `{email}` is added as an **Editor** in your Google Sheet's Share settings.")
+            st.error(
+                f"❌ **Error opening spreadsheet:** {err_msg}\n\n"
+                f"👉 **Please share your Google Sheet with this address (as Editor):**\n\n"
+                f"`{email}`\n\n"
+                f"*(Open your Google Sheet &rarr; Click **Share** &rarr; Add `{email}` as **Editor** &rarr; Click **Save**)*"
+            )
+        else:
+            st.error(f"❌ Error opening spreadsheet: {err_msg}")
         return None
 
 def generate_hash_key(account_name, transaction_date, description, amount):
@@ -259,7 +265,9 @@ def append_rows_to_sheet(spreadsheet, sheet_name, df):
         wks.append_rows(rows_to_append, value_input_option="USER_ENTERED")
         return True
     except Exception as e:
-        st.error(f"❌ Failed to append data to worksheet '{sheet_name}': {e}")
+        email = get_service_account_email()
+        share_note = f"\n\n👉 **Make sure you shared your Google Sheet with this address (as Editor):**\n\n`{email}`" if email else ""
+        st.error(f"❌ Failed to append data to worksheet '{sheet_name}': {e}{share_note}")
         return False
 
 def log_processing_run(spreadsheet, summary_dict):
