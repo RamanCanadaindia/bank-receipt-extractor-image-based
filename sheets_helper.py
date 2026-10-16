@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import hashlib
 from datetime import datetime
+import json
+import re
 
 # Define standard scopes for Google Sheets and Drive API
 SCOPES = [
@@ -11,12 +13,41 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive"
 ]
 
+def get_service_account_email():
+    """
+    Returns the service account client email configured in Streamlit secrets, or empty string.
+    """
+    try:
+        if "gcp_service_account_json" in st.secrets:
+            data = json.loads(st.secrets["gcp_service_account_json"], strict=False)
+            return data.get("client_email", "")
+        elif "gcp_service_account" in st.secrets:
+            return dict(st.secrets["gcp_service_account"]).get("client_email", "")
+    except Exception:
+        pass
+    return ""
+
+def parse_spreadsheet_id(input_val):
+    """
+    Extracts the base spreadsheet ID from a Google Sheets URL or raw ID string.
+    Handles URLs like:
+      https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?usp=sharing#gid=0
+    """
+    if not input_val:
+        return ""
+    val = str(input_val).strip()
+    match = re.search(r'/spreadsheets/d/([a-zA-Z0-9-_]+)', val)
+    if match:
+        return match.group(1)
+    # Strip any query parameters or hashes
+    val = val.split("?")[0].split("#")[0].split("/")[0]
+    return val.strip()
+
 def get_gspread_client():
     """
     Initializes and returns a gspread client using the service account credentials in st.secrets.
     Supports either the TOML structure under [gcp_service_account] or the raw JSON string under gcp_service_account_json.
     """
-    import json
     try:
         if "gcp_service_account_json" in st.secrets:
             # strict=False allows literal newlines/control characters inside the JSON string
@@ -33,36 +64,59 @@ def get_gspread_client():
         creds = Credentials.from_service_account_info(credentials_dict, scopes=SCOPES)
         return gspread.authorize(creds)
     except Exception as e:
-        st.error(f"❌ Failed to authenticate with Google Sheets: {e}")
+        err_msg = str(e).strip() or repr(e)
+        st.error(f"❌ Failed to authenticate with Google Sheets: {err_msg}")
         return None
 
 def get_spreadsheet(client, spreadsheet_id):
     """
     Retrieves the target spreadsheet from client using a spreadsheet ID or URL.
     """
-    if not spreadsheet_id:
-        st.error("❌ Google Spreadsheet ID/URL is empty.")
+    if not spreadsheet_id or not str(spreadsheet_id).strip():
+        st.error("❌ Google Spreadsheet ID/URL is empty. Please enter your Google Sheet link or ID.")
         return None
         
-    # If a full URL was pasted, parse out the ID automatically
-    if "docs.google.com/spreadsheets" in str(spreadsheet_id):
-        try:
-            parts = str(spreadsheet_id).split("/d/")
-            if len(parts) > 1:
-                spreadsheet_id = parts[1].split("/")[0]
-        except Exception:
-            pass
+    cleaned_id = parse_spreadsheet_id(spreadsheet_id)
+    if not cleaned_id:
+        st.error("❌ Could not extract a valid Spreadsheet ID. Please verify the URL or ID.")
+        return None
+
+    email = get_service_account_email()
             
     try:
-        return client.open_by_key(spreadsheet_id)
+        return client.open_by_key(cleaned_id)
     except gspread.exceptions.SpreadsheetNotFound:
+        # Fallback: maybe the user passed a spreadsheet title
         try:
-            return client.open(spreadsheet_id)
+            return client.open(str(spreadsheet_id).strip())
         except Exception:
-            st.error(f"❌ Spreadsheet ID/URL '{spreadsheet_id}' not found or inaccessible. Make sure you shared it with the service account email.")
+            st.error(f"❌ Spreadsheet with ID '{cleaned_id}' not found or inaccessible.")
+            if email:
+                st.warning(
+                    f"👉 **Did you share your sheet?**\n\n"
+                    f"Please open your Google Sheet, click **Share**, and invite this Service Account with **Editor** access:\n\n"
+                    f"`{email}`"
+                )
             return None
+    except gspread.exceptions.APIError as e:
+        err_msg = str(e).strip() or (e.response.text if hasattr(e, 'response') else repr(e))
+        st.error(f"❌ Google API permission error when opening spreadsheet (`{cleaned_id}`): {err_msg}")
+        if email:
+            st.warning(
+                f"👉 **Permission Denied (403/404):**\n\n"
+                f"Google Sheets requires you to share the document with the Service Account email:\n\n"
+                f"`{email}`\n\n"
+                f"1. Open your Google Sheet in a browser tab.\n"
+                f"2. Click the top-right **Share** button.\n"
+                f"3. Paste `{email}` and set permissions to **Editor**.\n"
+                f"4. Click **Save** and click **Process & Send to Google Sheets** again."
+            )
+        return None
     except Exception as e:
-        st.error(f"❌ Error opening spreadsheet: {e}")
+        err_msg = str(e).strip() or repr(e)
+        st.error(f"❌ Error opening spreadsheet: {err_msg}")
+        if email:
+            st.info(f"💡 Ensure `{email}` is added as an **Editor** in your Google Sheet's Share settings.")
         return None
 
 def generate_hash_key(account_name, transaction_date, description, amount):

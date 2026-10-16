@@ -608,6 +608,36 @@ Purchases $0.69
         self.assertEqual(interest_tx["date"], "2026-04-21")
         self.assertEqual(interest_tx["debit"], 0.69)
 
+    def test_sheets_helper_parsing(self):
+        """Test Google Sheets ID parsing from various URL formats."""
+        import sheets_helper
+        expected = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+        
+        # Standard edit URL with gid
+        url1 = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit#gid=0"
+        self.assertEqual(sheets_helper.parse_spreadsheet_id(url1), expected)
+
+        # URL with sharing parameter
+        url2 = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit?usp=sharing"
+        self.assertEqual(sheets_helper.parse_spreadsheet_id(url2), expected)
+
+        # Bare spreadsheet URL
+        url3 = "https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"
+        self.assertEqual(sheets_helper.parse_spreadsheet_id(url3), expected)
+
+        # Raw spreadsheet ID (with and without whitespace)
+        self.assertEqual(sheets_helper.parse_spreadsheet_id("1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms"), expected)
+        self.assertEqual(sheets_helper.parse_spreadsheet_id("  1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms  "), expected)
+
+        # Empty / None
+        self.assertEqual(sheets_helper.parse_spreadsheet_id(""), "")
+        self.assertEqual(sheets_helper.parse_spreadsheet_id(None), "")
+
+        # Service account email helper
+        email = sheets_helper.get_service_account_email()
+        self.assertTrue("@" in email)
+        self.assertTrue("gserviceaccount.com" in email)
+
 if __name__ == "__main__":
     unittest.main()
 

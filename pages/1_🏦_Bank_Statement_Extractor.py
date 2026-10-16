@@ -168,12 +168,17 @@ try:
         default_sheet_id = st.secrets.get("google_sheets", {}).get("spreadsheet_id", "")
 except Exception:
     default_sheet_id = ""
+if "target_sheet_url" not in st.session_state:
+    st.session_state["target_sheet_url"] = default_sheet_id
 
 target_spreadsheet_id = st.sidebar.text_input(
     "Target Google Sheet ID / URL",
-    value=default_sheet_id,
+    value=st.session_state["target_sheet_url"],
     help="Paste the target Google Sheet's browser URL or its ID here. Ensure you've shared the Sheet with the service account email."
 )
+if target_spreadsheet_id != st.session_state["target_sheet_url"]:
+    st.session_state["target_sheet_url"] = target_spreadsheet_id
+
 dest_sheet_override = st.sidebar.selectbox(
     "Destination Sheet Tab",
     ["Credit Card", "Bank Transactions", "Bank Single Column", "Create New Tab", "Custom Tab Name...", "[Auto-detect based on file]"],
@@ -975,17 +980,41 @@ if uploaded_files:
             has_sheets_secrets = "gcp_service_account" in st.secrets or "gcp_service_account_json" in st.secrets
         except Exception:
             has_sheets_secrets = False
+
+        import sheets_helper
+        sa_email = sheets_helper.get_service_account_email() if has_sheets_secrets else ""
+        
         if not has_sheets_secrets:
             st.warning("⚠️ Google Sheets credentials are not configured in secrets. Please configure secrets.toml or Streamlit Cloud Settings to enable sync.")
         else:
-            st.info("💡 Google Sheets credentials detected. Choose your destination tab below, then click **Process & Send to Google Sheets**.")
+            if sa_email:
+                st.info(
+                    f"🔑 **Step 1 — Share your Google Sheet:**\n\n"
+                    f"Ensure this Google Service Account is added with **Editor** permissions to your Google Sheet:\n\n"
+                    f"`{sa_email}`\n\n"
+                    f"*(Open your Google Sheet &rarr; Click **Share** in the top-right corner &rarr; Add the email above as **Editor** &rarr; Click **Send/Share**)*"
+                )
+            else:
+                st.info("💡 Google Sheets credentials detected. Choose your destination tab below, then click **Process & Send to Google Sheets**.")
+
+        current_target = st.session_state.get("target_sheet_url", target_spreadsheet_id)
+        sheet_url_input = st.text_input(
+            "🎯 Step 2 — Target Google Sheet URL or ID:",
+            value=current_target,
+            key="main_target_sheet_input",
+            placeholder="https://docs.google.com/spreadsheets/d/... or Spreadsheet ID",
+            help="Paste your Google Sheet's browser link or its ID."
+        )
+        if sheet_url_input != current_target:
+            st.session_state["target_sheet_url"] = sheet_url_input
+            target_spreadsheet_id = sheet_url_input
             
         col_tab_sel1, col_tab_sel2 = st.columns([1, 1])
         with col_tab_sel1:
             is_detected_cc = ('is_credit_card' in df_edited.columns and df_edited['is_credit_card'].any())
             default_tab_idx = 0 if is_detected_cc else 1
             dest_choice = st.selectbox(
-                "📁 Destination Tab in Google Sheet:",
+                "📁 Step 3 — Destination Tab in Google Sheet:",
                 ["Credit Card", "Bank Transactions", "Bank Single Column", "Create New Tab (named after PDF)", "Custom Tab Name..."],
                 index=default_tab_idx,
                 help="Choose which tab/worksheet inside your Google Sheet these transactions will be posted to.",
@@ -1004,10 +1033,13 @@ if uploaded_files:
             send_to_sheets = st.button("📤 Process & Send to Google Sheets", key="send_to_sheets_btn")
             
         if send_to_sheets and has_sheets_secrets:
-            import sheets_helper
-            with st.spinner("Connecting to Google Sheets..."):
-                client = sheets_helper.get_gspread_client()
-                spreadsheet = sheets_helper.get_spreadsheet(client, target_spreadsheet_id) if client else None
+            chosen_sheet = sheet_url_input.strip() or target_spreadsheet_id.strip()
+            if not chosen_sheet:
+                st.error("❌ Please provide a Google Sheet URL or ID in Step 2 above before sending.")
+            else:
+                with st.spinner("Connecting to Google Sheets..."):
+                    client = sheets_helper.get_gspread_client()
+                    spreadsheet = sheets_helper.get_spreadsheet(client, chosen_sheet) if client else None
                 
             if spreadsheet:
                 with st.spinner("Performing pre-categorization, duplicate checking, and upload..."):
