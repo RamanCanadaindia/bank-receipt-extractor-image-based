@@ -597,7 +597,7 @@ def extract_digital_pdf(pdf_path, bank_name):
             
     # Check for standard opening balance patterns in raw text
     if opening_bal_from_text is None:
-        m_op = re.search(r'(?:opening|previous|prior)\s+(?:total\s+)?(?:statement\s+)?balance\s*(?:forward)?(?:,?\s*[a-z]{3,}\.?\s+\d{1,2},?\s+\d{4})?\s*[\:\$]?\s*([\d,]+\.\d{2})', txt_lower)
+        m_op = re.search(r'(?:opening|previous|prior)\s+(?:total\s+)?(?:statement\s+)?balance\s*(?:forward)?(?:[,\s]+[a-z]{3,}\.?\s+\d{1,2}(?:,\s*\d{4}|/\d{2,4})?)?\s*[\:\$]?\s*(\d[\d,]*\.\d{2})', txt_lower)
         if m_op:
             try:
                 opening_bal_from_text = float(m_op.group(1).replace(",", ""))
@@ -609,7 +609,7 @@ def extract_digital_pdf(pdf_path, bank_name):
 
     if is_credit_card:
         # Find ending balance
-        m_end = re.search(r'(?:total|new|ending|closing|current)\s+(?:statement\s+)?balance\s*(?:due)?\s*(?:=|\s)\s*[\-\$]*\s*([\d,]+\.\d{2})', txt_lower)
+        m_end = re.search(r'(?:total|new|ending|closing|current|account)\s+(?:statement\s+)?balance[^\d\n]*?[\$]?([\d,]+\.\d{2})', txt_lower)
         if m_end:
             try:
                 ending_bal = float(m_end.group(1).replace(",", ""))
