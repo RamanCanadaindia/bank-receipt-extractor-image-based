@@ -553,6 +553,61 @@ DESCRIPTION INTEREST CHARGED ENDING BALANCE PROMOTION EXPIRY
         total_charges = sum(t["debit"] for t in txs)
         self.assertEqual(total_charges, 108.00)
 
+    def test_scotiabank_visa_multipage_and_trailing_minus_payment(self):
+        """Test Scotiabank Visa multi-page continuation and trailing minus payment credit parsing."""
+        import extract_statement
+
+        # Test date deduplication doesn't corrupt days like 11 and 22
+        parsed_11, m_11 = local_extractor.parse_date("Apr 11", 2026, 3, 2026, 4)
+        self.assertEqual(parsed_11, "2026-04-11")
+        self.assertEqual(m_11, 4)
+
+        parsed_22, m_22 = local_extractor.parse_date("Apr 22", 2026, 3, 2026, 4)
+        self.assertEqual(parsed_22, "2026-04-22")
+        self.assertEqual(m_22, 4)
+
+        p1 = """Scotia Momentum for business VISA card
+Statement Period Mar 22, 2026 - Apr 21, 2026
+Account # 4537 XXXX XXXX 5601
+Transactions since your last statement
+REF.# TRANS. DATE POST DATE DETAILS AMOUNT($)
+001 Mar 21 Mar 22 HARMAN DISTRIBUTORS INC SURREY BC 266.56
+002 Mar 21 Mar 22 NEW VISION GLASS & SHOWE SURREY BC 1,050.00
+014 Apr 2 Apr 3 PAYMENT FROM - *****02*4013 110.00-
+018 Apr 10 Apr 11 ACME GLASS SURREY BC 1,000.00
+Continued on page 3
+"""
+        p2 = """INFORMATION ABOUT YOUR SCOTIABANK STATEMENT
+Review your statement carefully.
+"""
+        p3 = """Transactions - continued
+REF.# TRANS. DATE POST DATE DETAILS AMOUNT($)
+019 Apr 10 Apr 11 FINE GLASS HARDWARE LTD. SURREY BC 18.27
+025 Apr 11 Apr 12 STERLING HARDWARE LTD SURREY BC 192.23
+034 Apr 21 Apr 21 INTEREST CHARGES-PURCHASE 0.69
+SUB-TOTAL CREDITS - 4537 XXXX XXXX 5601 $110.00-
+SUB-TOTAL DEBITS - 4537 XXXX XXXX 5601 $7,070.71
+Interest charges posted on statement date
+Purchases $0.69
+"""
+        txs = extract_statement.parse_digital_text([p1, p2, p3])
+        self.assertEqual(len(txs), 7)
+        # Verify payment line with trailing minus
+        payment_tx = [t for t in txs if "PAYMENT FROM" in t["description"]][0]
+        self.assertEqual(payment_tx["date"], "2026-04-02")
+        self.assertIsNone(payment_tx["debit"])
+        self.assertEqual(payment_tx["credit"], 110.00)
+
+        # Verify Apr 11 date parsing
+        sterling_tx = [t for t in txs if "STERLING HARDWARE" in t["description"]][0]
+        self.assertEqual(sterling_tx["date"], "2026-04-11")
+        self.assertEqual(sterling_tx["debit"], 192.23)
+
+        # Verify interest transaction
+        interest_tx = [t for t in txs if "INTEREST CHARGES-PURCHASE" in t["description"]][0]
+        self.assertEqual(interest_tx["date"], "2026-04-21")
+        self.assertEqual(interest_tx["debit"], 0.69)
+
 if __name__ == "__main__":
     unittest.main()
 

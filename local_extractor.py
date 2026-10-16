@@ -136,7 +136,8 @@ def parse_date(date_str, start_year, start_month, end_year, end_month):
     clean_str = str(date_str).strip().lower().replace(",", "").replace(".", "")
     
     # Deduplicate double struck characters (e.g., 1144mmaarr -> 14mar)
-    clean_str = re.sub(r'(.)\1', r'\1', clean_str)
+    if re.search(r'([a-z])\1', clean_str):
+        clean_str = re.sub(r'(.)\1', r'\1', clean_str)
     
     # Extract first date if multiple dates are present (e.g., transaction + posting dates)
     m_md = re.search(r'\b([a-z]{3})\s+(\d{1,2})\b', clean_str)
@@ -293,7 +294,10 @@ def looks_like_date_word(word):
         return False
         
     # Clean double struck characters if present (e.g. 1144mmaarr -> 14mar)
-    w_clean = re.sub(r'(.)\1', r'\1', w)
+    if re.search(r'([a-z])\1', w):
+        w_clean = re.sub(r'(.)\1', r'\1', w)
+    else:
+        w_clean = w
     
     if w_clean.isdigit():
         if len(w_clean) == 3 or (len(w_clean) == 4 and (w_clean.startswith("19") or w_clean.startswith("20"))):
@@ -644,17 +648,29 @@ def extract_digital_pdf(pdf_path, bank_name):
                 header_top = None
                 post_x0 = None
                 desc_x0 = None
+                date_x0 = None
                 for w in words:
-                    w_text = w["text"].lower()
-                    if w_text in ("date", "description", "details"):
-                        if header_top is None:
-                            header_top = w["top"]
+                    w_text = w["text"].lower().strip("(),:$")
                     if w_text in ("description", "details"):
-                        if desc_x0 is None:
-                            desc_x0 = w["x0"]
-                    if w_text.startswith("post"):
-                        if post_x0 is None:
-                            post_x0 = w["x0"]
+                        header_top = w["top"]
+                        desc_x0 = w["x0"]
+                        break
+                if header_top is None:
+                    for w in words:
+                        w_text = w["text"].lower().strip("(),:$")
+                        if w_text in ("date", "description", "details"):
+                            header_top = w["top"]
+                            break
+                if header_top is not None:
+                    for w in words:
+                        if abs(w["top"] - header_top) <= 12.0:
+                            w_text = w["text"].lower().strip("(),:$")
+                            if w_text.startswith("date") and date_x0 is None:
+                                date_x0 = w["x0"]
+                            if w_text.startswith("post") and post_x0 is None:
+                                post_x0 = w["x0"]
+                            if w_text in ("description", "details") and desc_x0 is None:
+                                desc_x0 = w["x0"]
                 
                 # Check column X coordinates
                 debit_x_coords = []
@@ -753,7 +769,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                     if footer_reached:
                         continue
                         
-                    if header_top is not None and top_val < (header_top - 2.0):
+                    if header_top is not None and top_val <= (header_top + 2.0):
                         continue
                         
                     # 1. Detect start and end markers
@@ -761,10 +777,14 @@ def extract_digital_pdf(pdf_path, bank_name):
                         if (line_txt_lower.startswith("your payments") or 
                             line_txt_lower.startswith("your new charges") or 
                             "transactions since" in line_txt_lower or 
-                            line_txt_lower.startswith("card number:")):
+                            "transactions - continued" in line_txt_lower or 
+                            "transactions continued" in line_txt_lower or 
+                            line_txt_lower.startswith("card number:") or
+                            header_top is not None):
                             active_extraction = True
                             if not line_txt_lower.startswith("card number:"):
-                                continue
+                                if not header_top:
+                                    continue
                         
                         # Stop if footer or summary categories encountered
                         if any(marker in line_txt_lower for marker in [
@@ -785,9 +805,12 @@ def extract_digital_pdf(pdf_path, bank_name):
                             "special offers summary",
                             "please detach here",
                             "please return this stub",
-                            "information about your scotiabank statement"
+                            "information about your scotiabank statement",
+                            "continued on page",
+                            "continuedonpage"
                         ]):
                             active_extraction = False
+                            footer_reached = True
                             continue
 
                         # Subtotal lines and cardholder number headers should be skipped, but should not stop extraction
@@ -842,8 +865,12 @@ def extract_digital_pdf(pdf_path, bank_name):
                             continue
                         
                         # Clean amounts helper
-                        is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*$', text_token)
+                        is_numeric = re.match(r'^\-?\$?\d+[\d,\.]*\-?$', text_token)
                         
+                        # If table has a separate REF column before the date column, skip tokens in the REF column
+                        if is_credit_card and date_x0 is not None and x_mid < (date_x0 - 2.0):
+                            continue
+
                         # Dynamic date limit based on description column position
                         if is_credit_card and post_x0 is not None:
                             date_limit = post_x0 - 2.0
@@ -962,25 +989,23 @@ def extract_digital_pdf(pdf_path, bank_name):
             continue
             
         # Check if this row is a continuation row containing amounts for the previous transaction
-        deb_clean = debit_raw.replace("$", "").replace(",", "").strip() if debit_raw else ""
-        cred_clean = credit_raw.replace("$", "").replace(",", "").strip() if credit_raw else ""
-        bal_clean = balance_raw.replace("$", "").replace(",", "").strip() if balance_raw else ""
-        deb_clean = re.sub(r'cr', '', deb_clean, flags=re.IGNORECASE).strip()
-        cred_clean = re.sub(r'cr', '', cred_clean, flags=re.IGNORECASE).strip()
-        bal_clean = re.sub(r'cr', '', bal_clean, flags=re.IGNORECASE).strip()
+        def parse_amt_token(raw_str):
+            if not raw_str:
+                return None, False
+            s = re.sub(r'cr', '', str(raw_str), flags=re.IGNORECASE).replace('$', '').replace(',', '').strip()
+            is_neg = False
+            if s.endswith('-') or s.startswith('-'):
+                is_neg = True
+                s = s.strip('+-')
+            try:
+                val = float(s)
+                return (-val if is_neg else val), is_neg
+            except ValueError:
+                return None, False
 
-        temp_debit = None
-        temp_credit = None
-        temp_balance = None
-        try:
-            if deb_clean: temp_debit = float(deb_clean)
-        except ValueError: pass
-        try:
-            if cred_clean: temp_credit = float(cred_clean)
-        except ValueError: pass
-        try:
-            if bal_clean: temp_balance = float(bal_clean)
-        except ValueError: pass
+        temp_debit, _ = parse_amt_token(debit_raw)
+        temp_credit, _ = parse_amt_token(credit_raw)
+        temp_balance, temp_bal_neg = parse_amt_token(balance_raw)
 
         if not date_raw and (temp_debit is not None or temp_credit is not None or temp_balance is not None):
             if transactions and transactions[-1]["debit"] is None and transactions[-1]["credit"] is None and transactions[-1]["balance"] is None and transactions[-1].get("page_num") == r["page_num"]:
@@ -989,8 +1014,8 @@ def extract_digital_pdf(pdf_path, bank_name):
                 if is_credit_card and temp_balance is not None:
                     val_amt = temp_balance
                     desc_lower = transactions[-1]["description"].lower()
-                    is_cr = "CR" in balance_raw.upper() or desc_lower.endswith(" cr") or " cr " in desc_lower
-                    if "payment" in desc_lower or "thank you" in desc_lower or "paiment" in desc_lower or "refund" in desc_lower or "credit" in desc_lower or "rebate" in desc_lower or is_cr or val_amt < 0:
+                    is_cr = "CR" in balance_raw.upper() or desc_lower.endswith(" cr") or " cr " in desc_lower or temp_bal_neg or (val_amt < 0)
+                    if any(k in desc_lower for k in ("payment", "thank you", "paiment", "refund", "credit", "rebate")) or is_cr or val_amt < 0:
                         transactions[-1]["credit"] = abs(val_amt)
                         transactions[-1]["debit"] = None
                     else:
@@ -1004,26 +1029,9 @@ def extract_digital_pdf(pdf_path, bank_name):
                 continue
 
         # Parse numeric values
-        debit = None
-        credit = None
-        balance = None
-        
-        # Clean numeric strings of "CR" / "cr"
-        deb_clean_str = re.sub(r'cr', '', debit_raw, flags=re.IGNORECASE).strip() if debit_raw else ""
-        cred_clean_str = re.sub(r'cr', '', credit_raw, flags=re.IGNORECASE).strip() if credit_raw else ""
-        bal_clean_str = re.sub(r'cr', '', balance_raw, flags=re.IGNORECASE).strip() if balance_raw else ""
-        
-        try:
-            if deb_clean_str: debit = float(deb_clean_str)
-        except ValueError: pass
-        
-        try:
-            if cred_clean_str: credit = float(cred_clean_str)
-        except ValueError: pass
-        
-        try:
-            if bal_clean_str: balance = float(bal_clean_str)
-        except ValueError: pass
+        debit, deb_is_neg = parse_amt_token(debit_raw)
+        credit, cred_is_neg = parse_amt_token(credit_raw)
+        balance, bal_is_neg = parse_amt_token(balance_raw)
         
         # If credit card statement, amount is in balance, determine debit/credit
         if is_credit_card and balance is not None:
@@ -1031,7 +1039,7 @@ def extract_digital_pdf(pdf_path, bank_name):
             balance = None
             desc_lower = desc.lower()
             
-            is_cr = "CR" in debit_raw.upper() or "CR" in credit_raw.upper() or "CR" in balance_raw.upper()
+            is_cr = "CR" in debit_raw.upper() or "CR" in credit_raw.upper() or "CR" in balance_raw.upper() or bal_is_neg or (val_amt < 0)
             if desc_lower.endswith(" cr"):
                 is_cr = True
                 desc = desc[:-3].strip()
@@ -1039,7 +1047,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                 is_cr = True
                 desc = re.sub(r'\s+cr\s+', ' ', desc, flags=re.IGNORECASE).strip()
                 
-            if "payment" in desc_lower or "thank you" in desc_lower or "paiment" in desc_lower or "refund" in desc_lower or "credit" in desc_lower or "rebate" in desc_lower or is_cr or val_amt < 0:
+            if any(k in desc_lower for k in ("payment", "thank you", "paiment", "refund", "credit", "rebate")) or is_cr or val_amt < 0:
                 credit = abs(val_amt)
                 debit = None
             else:
@@ -1115,7 +1123,7 @@ def extract_digital_pdf(pdf_path, bank_name):
         }
         lines = [l.strip() for l in raw_text.split("\n") if l.strip()]
         pattern_row = re.compile(r'^([A-Za-z]{3})\.?\s+(\d{1,2})\s+(.+?)\s+([\d,]+\.\d{2})?(?:\s+([\d,]+\.\d{2}))?\s+([\d,]+\.\d{2})$')
-        pattern_cc_fallback = re.compile(r'^([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$', re.IGNORECASE)
+        pattern_cc_fallback = re.compile(r'^(?:(\d{1,4})\s+)?([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\-\+]?[\d,]+\.\d{2}[\-\+]?)\s*(CR)?$', re.IGNORECASE)
         
         for line_idx, line_str in enumerate(lines):
             m = pattern_row.match(line_str)
@@ -1173,7 +1181,7 @@ def extract_digital_pdf(pdf_path, bank_name):
                     "statement_order": len(final_txs)
                 })
             elif m_cc:
-                m_str, d_str, d_desc, a1, cr_flag = m_cc.groups()
+                ref_num, m_str, d_str, d_desc, a1, cr_flag = m_cc.groups()
                 m_key = m_str.lower()[:3]
                 if m_key not in months_map:
                     continue
@@ -1183,8 +1191,16 @@ def extract_digital_pdf(pdf_path, bank_name):
                 day_num = int(d_str)
                 year = start_year if month_num >= start_month else end_year
                 date_str = f"{year}-{month_num:02d}-{day_num:02d}"
-                val_amt = float(a1.replace(",", ""))
-                is_cr = bool(cr_flag) or any(k in d_desc.lower() for k in ("payment", "thank you", "paiement", "merci", "refund", "credit", "cr"))
+                is_a1_neg = False
+                clean_a1 = a1.replace("$", "").replace(",", "").strip()
+                if clean_a1.endswith("-") or clean_a1.startswith("-"):
+                    is_a1_neg = True
+                    clean_a1 = clean_a1.strip("+-")
+                try:
+                    val_amt = float(clean_a1)
+                except ValueError:
+                    continue
+                is_cr = bool(cr_flag) or is_a1_neg or any(k in d_desc.lower() for k in ("payment", "thank you", "paiement", "merci", "refund", "credit", "cr"))
                 final_txs.append({
                     "date": date_str,
                     "description": d_desc.strip(),

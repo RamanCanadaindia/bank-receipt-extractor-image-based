@@ -146,7 +146,7 @@ def parse_digital_text(text_pages):
     )
     # Pattern 3: Credit Card with optional Ref Number, Trans Date, optional Posting Date, description, amount, optional CR
     pattern_cc_date = re.compile(
-        r"^(?:(\d{1,4})\s+)?([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\d,]+\.\d{2})\s*(CR)?$",
+        r"^(?:(\d{1,4})\s+)?([A-Za-z]{3,4})\.?\s+(\d{1,2})(?:\s+[A-Za-z]{3,4}\.?\s+\d{1,2})?\s+(.+?)\s+([\-\+]?[\d,]+\.\d{2}[\-\+]?)\s*(CR)?$",
         re.IGNORECASE
     )
     # Pattern 4: Date with slashes/dashes and 4-digit year (e.g. Scotiabank '03/03/2026 CREDIT MEMO 79.00 965.50')
@@ -174,7 +174,7 @@ def parse_digital_text(text_pages):
         r"^(.*?)\s*([\d,]+\.\d{2})\s+(\$?[\d,]+\.\d{2})$"
     )
     pattern_trailing_one_amount = re.compile(
-        r"^(.*?)\s*([\d,]+\.\d{2})\s*(CR)?$",
+        r"^(.*?)\s*([\-\+]?[\d,]+\.\d{2}[\-\+]?)\s*(CR)?$",
         re.IGNORECASE
     )
 
@@ -278,7 +278,18 @@ def parse_digital_text(text_pages):
                     continue
 
                 bal_val = float(balance_str.replace("$", "").replace(",", "")) if balance_str else None
-                val1 = float(amount1.replace(",", "")) if amount1 else None
+                is_amount1_negative = False
+                val1 = None
+                if amount1:
+                    clean_a1 = amount1.replace("$", "").replace(",", "").strip()
+                    if clean_a1.endswith("-") or clean_a1.startswith("-"):
+                        is_amount1_negative = True
+                        clean_a1 = clean_a1.strip("+-")
+                    try:
+                        val1 = float(clean_a1)
+                    except ValueError:
+                        val1 = None
+
                 val2 = float(amount2.replace(",", "")) if amount2 else None
                 
                 debit = None
@@ -288,13 +299,13 @@ def parse_digital_text(text_pages):
                     credit = val2
                 elif val1 is not None:
                     if m_cc:
-                        if cr_flag or re.search(r'\bcr\b', desc_clean) or any(k in desc_clean for k in ("payment received", "pymt received", "refund", "rebate")):
+                        if cr_flag or is_amount1_negative or re.search(r'\bcr\b', desc_clean) or any(k in desc_clean for k in ("payment", "pymt", "refund", "rebate")):
                             credit = val1
                         else:
                             debit = val1
                     else:
                         is_known_credit = bool(re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean))
-                        if is_known_credit:
+                        if is_known_credit or is_amount1_negative:
                             credit = val1
                         else:
                             debit = val1
@@ -378,11 +389,19 @@ def parse_digital_text(text_pages):
                     m_one = pattern_trailing_one_amount.match(line)
                     if m_one:
                         extra_desc, a1, cr_flag = m_one.groups()
-                        val1 = float(a1.replace(",", ""))
+                        is_a1_neg = False
+                        clean_a1 = a1.replace("$", "").replace(",", "").strip()
+                        if clean_a1.endswith("-") or clean_a1.startswith("-"):
+                            is_a1_neg = True
+                            clean_a1 = clean_a1.strip("+-")
+                        try:
+                            val1 = float(clean_a1)
+                        except ValueError:
+                            val1 = 0.0
                         if extra_desc.strip():
                             current_tx["description"] += " " + extra_desc.strip()
                         desc_clean = current_tx["description"].lower()
-                        if cr_flag or re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot)\b', desc_clean):
+                        if cr_flag or is_a1_neg or re.search(r'\b(?:deposit|received|rebate|refund|payroll|credit|cr|depot|payment)\b', desc_clean):
                             current_tx["credit"] = val1
                         else:
                             current_tx["debit"] = val1
@@ -409,6 +428,13 @@ def parse_digital_text(text_pages):
                             "row_idx": line_idx
                         }
                         continue
+
+                # Check for page continuation stops or disclaimers before appending to description
+                line_lower = line.lower()
+                if "continued on page" in line_lower or "continuedonpage" in line_lower or is_disclaimer_or_metadata(line):
+                    finalize_tx(current_tx)
+                    current_tx = None
+                    continue
 
                 # Otherwise, it is text description continuation
                 current_tx["description"] += " " + line.strip()
