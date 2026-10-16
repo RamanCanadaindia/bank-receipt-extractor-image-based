@@ -176,7 +176,7 @@ target_spreadsheet_id = st.sidebar.text_input(
 )
 dest_sheet_override = st.sidebar.selectbox(
     "Destination Sheet Tab",
-    ["Create New Tab", "[Auto-detect based on file]", "Bank Transactions", "Bank Single Column", "Credit Card"],
+    ["Credit Card", "Bank Transactions", "Bank Single Column", "Create New Tab", "Custom Tab Name...", "[Auto-detect based on file]"],
     index=0,
     help="Select the target Google Sheet tab. 'Create New Tab' will dynamically create a new tab in your Google Sheet named after the statement filename."
 )
@@ -978,7 +978,26 @@ if uploaded_files:
         if not has_sheets_secrets:
             st.warning("⚠️ Google Sheets credentials are not configured in secrets. Please configure secrets.toml or Streamlit Cloud Settings to enable sync.")
         else:
-            st.info("💡 Google Sheets credentials detected. Press the button below to upload directly.")
+            st.info("💡 Google Sheets credentials detected. Choose your destination tab below, then click **Process & Send to Google Sheets**.")
+            
+        col_tab_sel1, col_tab_sel2 = st.columns([1, 1])
+        with col_tab_sel1:
+            is_detected_cc = ('is_credit_card' in df_edited.columns and df_edited['is_credit_card'].any())
+            default_tab_idx = 0 if is_detected_cc else 1
+            dest_choice = st.selectbox(
+                "📁 Destination Tab in Google Sheet:",
+                ["Credit Card", "Bank Transactions", "Bank Single Column", "Create New Tab (named after PDF)", "Custom Tab Name..."],
+                index=default_tab_idx,
+                help="Choose which tab/worksheet inside your Google Sheet these transactions will be posted to.",
+                key="dest_choice_main"
+            )
+        with col_tab_sel2:
+            custom_tab_input = ""
+            if dest_choice == "Custom Tab Name...":
+                custom_tab_input = st.text_input("Enter Custom Tab Name:", value="Credit Card", key="custom_tab_input_main", help="Type the exact name of the tab in Google Sheets.")
+            else:
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.caption(f"📌 Transactions will be posted to tab: **{dest_choice}**")
             
         col_sh1, col_sh2 = st.columns([1, 1])
         with col_sh1:
@@ -1107,16 +1126,20 @@ if uploaded_files:
                     duplicate_count = len(dupes_df)
                     
                     # 3. Determine target tab routing and upload
+                    chosen_tab_mode = dest_choice if 'dest_choice' in locals() else dest_sheet_override
                     target_tabs = []
                     for idx, row_up in new_df.iterrows():
-                        if dest_sheet_override == "Create New Tab":
+                        if "Create New Tab" in chosen_tab_mode:
                             fn = str(row_up.get('source_file', 'New_Transactions'))
                             if fn.lower().endswith('.pdf'):
                                 fn = fn[:-4]
                             # Sanitize Sheet worksheet name rules (limit 100 chars, no special chars)
                             fn = fn.replace(':', '_').replace('/', '_').replace('\\', '_').replace('?', '_').replace('*', '_').replace('[', '_').replace(']', '_')
                             target_tabs.append(fn[:100])
-                        elif dest_sheet_override == "[Auto-detect based on file]":
+                        elif "Custom Tab Name" in chosen_tab_mode:
+                            custom_name = custom_tab_input.strip() if ('custom_tab_input' in locals() and custom_tab_input.strip()) else "Transactions"
+                            target_tabs.append(custom_name)
+                        elif "[Auto-detect" in chosen_tab_mode:
                             fn = str(row_up.get('source_file', '')).lower()
                             bank = str(row_up.get('institution', '')).lower()
                             
@@ -1128,7 +1151,7 @@ if uploaded_files:
                             else:
                                 target_tabs.append("Bank Transactions")
                         else:
-                            target_tabs.append(dest_sheet_override)
+                            target_tabs.append(chosen_tab_mode)
                             
                     new_df['target_tab'] = target_tabs
                     
