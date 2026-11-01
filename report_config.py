@@ -1,5 +1,5 @@
 # Report wording configurations for management-prepared financial statements.
-# This tool is used by a non-CPA preparer in BC, so it must not issue a
+# This tool must not issue a
 # Notice to Reader or a CSRS 4200 compilation report. The wording below
 # states plainly that no audit, review, or compilation engagement was
 # performed and no assurance is expressed.

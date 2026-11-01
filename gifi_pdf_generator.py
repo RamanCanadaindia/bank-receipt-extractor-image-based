@@ -232,7 +232,7 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story.append(PageBreak())
     
     # ------------------ PAGE 2: MANAGEMENT-PREPARED STATEMENTS LETTER ------------------
-    # Non-CPA preparer: never emit a Notice to Reader / compilation heading,
+    # Never emit a Notice to Reader / compilation heading,
     # regardless of any legacy report_type value passed in.
     report_title_header = "MANAGEMENT-PREPARED FINANCIAL STATEMENTS"
 

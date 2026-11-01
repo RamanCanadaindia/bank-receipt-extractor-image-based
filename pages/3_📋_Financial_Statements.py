@@ -158,7 +158,7 @@ st.title("📋 Management-Prepared Financial Statements")
 st.markdown("""
 Extract financial statement details from CRA GIFI condensed statement PDFs and prepare management-prepared financial statements for your corporation, for income tax reporting purposes.
 
-These statements are prepared by a non-CPA accountant from information provided by management. No audit, review, or compilation engagement has been performed, and no assurance is expressed.
+These statements are prepared from information provided by management. No audit, review, or compilation engagement has been performed, and no assurance is expressed.
 """)
 
 # Setup two-column layout
@@ -176,9 +176,8 @@ with col_left:
         compiler_name = st.text_input("Preparer Firm Name", value=default_compiler)
         compilation_date_str = st.text_input("Report Date", value=datetime.today().strftime('%B %d, %Y'))
 
-        # Non-CPA preparer: only management-prepared statements are offered.
-        # A Notice to Reader / CSRS 4200 compilation report must not be
-        # issued by a non-CPA in BC, so no compilation report option is shown.
+        # Only management-prepared statements are offered here.
+        # A Notice to Reader / CSRS 4200 compilation report option is not shown.
         report_type = "Management-Prepared Financial Statements"
         basis_of_accounting = "Income Tax Basis"
 

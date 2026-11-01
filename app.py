@@ -123,7 +123,7 @@ with row2_col1:
         <div class="tool-name">Management-prepared financial statements</div>
         <div class="tool-desc">
             Prepare financial statements including Balance Sheets, Income Statements, and Notes to Financial Statements.
-            Perfect for corporate tax filing preparation and internal management reporting. Prepared by a non-CPA accountant; no audit, review, or compilation engagement is performed and no assurance is expressed.
+            Perfect for corporate tax filing preparation and internal management reporting. No audit, review, or compilation engagement is performed and no assurance is expressed.
         </div>
         <div class="nav-instruction">👈 Select "3 📋 Financial Statements" in the sidebar</div>
     </div>
