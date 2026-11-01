@@ -194,13 +194,20 @@ def classify_gifi_items(raw_items):
             classified["current_income_taxes"] = cleaned_item
             
         # Skip summary/total codes in detailed lists to avoid duplicate/triple counting
-        if code in (1599, 2008, 2009, 2599, 3139, 3620, 8089, 8299, 8518, 9367, 9970, 9990, 9999):
+        # 3450 = Total long-term liabilities and 3499 = Total liabilities
+        # were missing here, so a T2 that prints them would double-count
+        # long-term liabilities in the statement totals.
+        if code in (1599, 2008, 2009, 2599, 3139, 3450, 3499, 3620, 3640,
+                    8089, 8299, 8518, 9367, 9970, 9990, 9999):
             continue
         elif 1000 <= code <= 1599:
             classified["current_assets"].append(cleaned_item)
-        elif 1600 <= code <= 2199:
+        # Tangible capital assets end at 2099. Codes 2100-2199 (e.g. 2180
+        # Due from shareholder) are long-term assets, not tangible
+        # assets - the old 1600-2199 range put them under Tangible.
+        elif 1600 <= code <= 2099:
             classified["tangible_assets"].append(cleaned_item)
-        elif 2200 <= code <= 2598:
+        elif 2100 <= code <= 2598:
             classified["long_term_assets"].append(cleaned_item)
         elif 2600 <= code <= 3138:
             classified["current_liabilities"].append(cleaned_item)
