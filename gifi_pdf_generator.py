@@ -243,8 +243,10 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
         
     story.append(Spacer(1, 30))
     if include_preparer_details:
-        story.append(Paragraph("Business Number: 793344540", style_body))
-        story.append(Spacer(1, 10))
+        preparer_bn = format_business_number(meta.get("business_number", ""))
+        if preparer_bn:
+            story.append(Paragraph(f"Business Number: {preparer_bn}", style_body))
+            story.append(Spacer(1, 10))
         story.append(Paragraph("Prepared by:", style_body))
         story.append(Paragraph("<strong>RAMAN TAX & ACCOUNTING INC.</strong>", style_body))
         story.append(Paragraph("Phone: 604-440-9885", style_body))
