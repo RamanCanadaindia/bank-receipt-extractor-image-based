@@ -13,6 +13,7 @@ import auth
 import extract_statement
 import gifi_extractor
 import report_config
+import t2_condensed_extractor
 
 # Page authentication check
 if not auth.check_password():
@@ -225,10 +226,77 @@ with col_left:
         index=0
     )
 
-    uploaded_file = st.file_uploader("Upload GIFI PDF Statement", type=["pdf"])
-    
+    uploaded_file = st.file_uploader(
+        "Upload GIFI PDF Statement or full T2 PDF",
+        type=["pdf"],
+        help="A GIFI condensed statement PDF, or a full T2 / Record Keeping "
+             "PDF. For a T2, use the T2 button below - it reads only the "
+             "Condensed Balance Sheet and Condensed Income statement "
+             "pages (or the itemised Schedule 100 / 125 pages if there "
+             "are no condensed pages), so the 30-60 page T2 jacket and "
+             "schedules are not sent to Gemini OCR."
+    )
+
     if uploaded_file is not None:
-        process_btn = st.button("⚡ Extract GIFI Financial Data")
+        # --- T2 path: deterministic, no API key needed for text PDFs ---
+        t2_btn = st.button("⚡ Extract from T2 (condensed pages)")
+
+        if t2_btn:
+            uploaded_file.seek(0)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                tmp_file.write(uploaded_file.read())
+                tmp_pdf_path = tmp_file.name
+            try:
+                t2_result = t2_condensed_extractor.extract_t2_condensed(tmp_pdf_path)
+            finally:
+                if os.path.exists(tmp_pdf_path):
+                    os.remove(tmp_pdf_path)
+
+            if t2_result["found"]:
+                st.session_state.gifi_raw_items = t2_result["items"]
+                # Merge extracted meta into the existing meta dict,
+                # keeping any values the extractor could not find.
+                merged_meta = dict(st.session_state.gifi_meta)
+                for key, value in t2_result["meta"].items():
+                    if value:
+                        merged_meta[key] = value
+                st.session_state.gifi_meta = merged_meta
+                st.session_state.t2_source = t2_result["source"]
+                st.session_state.t2_pages = t2_result["pages"]
+                st.session_state.t2_checks = t2_result["checks"]
+                source_label = (
+                    "Condensed Balance Sheet / Condensed Income statement pages"
+                    if t2_result["source"] == "condensed"
+                    else "itemised Schedule 100 / Schedule 125 pages"
+                )
+                pages_label = (
+                    f" (Balance Sheet p. {t2_result['pages']['balance_sheet']}, "
+                    f"Income Statement p. {t2_result['pages']['income_statement']})"
+                    if t2_result["pages"] else ""
+                )
+                st.success(f"🎉 T2 parsed from {source_label}{pages_label}. "
+                           f"{len(t2_result['items'])} GIFI items loaded.")
+                for warning in t2_result["warnings"]:
+                    st.warning(f"⚠️ {warning}")
+                for check in t2_result["checks"]:
+                    if not check["ok"]:
+                        st.warning(f"⚠️ Check failed: {check['label']} - {check['detail']}")
+                st.rerun()
+            else:
+                for warning in t2_result["warnings"]:
+                    st.warning(f"⚠️ {warning}")
+                st.info("Falling back to Gemini OCR below, or upload the "
+                        "GIFI condensed statement on its own.")
+
+        # Show the last T2 tie-out checks, if any, so a failed check
+        # is visible before the report is printed.
+        if st.session_state.get("t2_checks"):
+            st.markdown("**T2 tie-out checks**")
+            for check in st.session_state["t2_checks"]:
+                icon = "✅" if check["ok"] else "⚠️"
+                st.markdown(f"{icon} {check['label']} - {check['detail']}")
+
+        process_btn = st.button("⚡ Extract GIFI Financial Data (Gemini OCR)")
         
         if process_btn:
             if not api_key:
@@ -504,10 +572,15 @@ with col_right:
         disclaimer_label = "(Unaudited)"
 
     if include_preparer_details:
+        # Use the business number from the uploaded T2/GIFI file, not a
+        # hard-coded number from a sample company. format_business_number
+        # is defined above in this section.
+        preparer_bn = format_business_number(meta.get("business_number", ""))
+        preparer_firm = compiler_name or "RAMAN TAX & ACCOUNTING INC."
         signature_block_html = f"""
-        Business Number: 793344540<br/><br/>
+        Business Number: {preparer_bn}<br/><br/>
         Prepared by:<br/>
-        <strong>RAMAN TAX & ACCOUNTING INC.</strong><br/>
+        <strong>{preparer_firm}</strong><br/>
         Phone: 604-440-9885<br/>
         Email: beedhtaxservices@outlook.com<br/>
         Date: {compilation_date_str}
