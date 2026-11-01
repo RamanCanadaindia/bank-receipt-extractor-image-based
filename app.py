@@ -120,12 +120,12 @@ with row2_col1:
     st.markdown("""
     <div class="tool-card">
         <div class="tool-icon">📋</div>
-        <div class="tool-name">Notice to Reader compiler</div>
+        <div class="tool-name">Management-prepared financial statements</div>
         <div class="tool-desc">
-            Compile financial statements including Balance Sheets, Income Statements, and Notes to Financial Statements. 
-            Perfect for corporate tax filing preparation, internal management reporting, and CPA bookkeeping handoffs.
+            Prepare financial statements including Balance Sheets, Income Statements, and Notes to Financial Statements.
+            Perfect for corporate tax filing preparation and internal management reporting. Prepared by a non-CPA accountant; no audit, review, or compilation engagement is performed and no assurance is expressed.
         </div>
-        <div class="nav-instruction">👈 Select "3 📋 Notice to Reader" in the sidebar</div>
+        <div class="nav-instruction">👈 Select "3 📋 Financial Statements" in the sidebar</div>
     </div>
     """, unsafe_allow_html=True)
 

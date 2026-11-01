@@ -1,5 +1,5 @@
 """
-T2 upload support for the Notice to Reader page.
+T2 upload support for the Management-Prepared Financial Statements page.
 
 A full T2 / Record Keeping PDF is NOT a GIFI-only PDF: it is 30-60 pages
 (T2 jacket, Schedule 1, Schedule 8, ... plus Schedule 100 / Schedule 125).

@@ -66,7 +66,7 @@ def add_page_decorations(canvas, doc):
         page_num_str = str(doc.page - 1)
         canvas.drawCentredString(letter[0] / 2.0, 36, page_num_str)
         # Small disclaimer at bottom
-        report_type = getattr(doc, "report_type", "Notice to Reader")
+        report_type = getattr(doc, "report_type", "Management-Prepared Financial Statements")
         if report_type == "Management-Prepared Financial Statements":
             footer_text = "Unaudited - Management Prepared"
         else:
@@ -231,13 +231,15 @@ def generate_financial_pdf(meta, classified, compiler_name, compilation_date, re
     story.append(Paragraph("(Unaudited)", style_cover_sub))
     story.append(PageBreak())
     
-    # ------------------ PAGE 2: NOTICE TO READER ------------------
-    report_title_header = "NOTICE TO READER"
-    
+    # ------------------ PAGE 2: MANAGEMENT-PREPARED STATEMENTS LETTER ------------------
+    # Non-CPA preparer: never emit a Notice to Reader / compilation heading,
+    # regardless of any legacy report_type value passed in.
+    report_title_header = "MANAGEMENT-PREPARED FINANCIAL STATEMENTS"
+
     story.append(Spacer(1, 20))
     story.append(Paragraph(report_title_header, ParagraphStyle('RepTitle', parent=styles['Normal'], fontName='Times-Bold', fontSize=14, leading=18, alignment=1, spaceAfter=30)))
-    
-    for block in report_config.NOTICE_TO_READER_TEXT.split("\n\n"):
+
+    for block in report_config.MANAGEMENT_PREPARED_TEXT.split("\n\n"):
         story.append(Paragraph(block, style_body))
         story.append(Spacer(1, 10))
         
