@@ -527,6 +527,32 @@ def is_disclaimer_or_metadata(desc_text):
             return True
     return False
 
+def is_credit_card_statement(raw_text):
+    """Distinguish card statements from bank accounts mentioning card payments."""
+    text_lower = str(raw_text).lower()
+    header_area = text_lower[:1200]
+    is_credit_card = any(
+        marker in header_area for marker in ("visa", "mastercard", "credit card")
+    )
+
+    # Business account transaction tables often contain descriptions such as
+    # "CREDIT CARD/LOC PAY." near the top. Those descriptions must not turn the
+    # whole bank account statement into a credit-card statement.
+    is_bank_account_table = (
+        "withdrawals/debits" in text_lower
+        and "deposits/credits" in text_lower
+        and "balance ($)" in text_lower
+    )
+    if (
+        is_bank_account_table
+        or "statement of: business account" in text_lower
+        or "business account statement" in header_area
+        or "royal bank of canada business" in header_area
+    ):
+        return False
+
+    return is_credit_card
+
 def extract_digital_pdf(pdf_path, bank_name):
     """
     Extracts transactions from a digital text statement PDF using pdfplumber coordinates.
@@ -575,12 +601,7 @@ def extract_digital_pdf(pdf_path, bank_name):
     start_year, start_month, end_year, end_month = extract_statement_period(raw_text)
     
     # Robust credit card detection
-    is_credit_card = False
-    header_area = raw_text[:1200].lower()
-    if "visa" in header_area or "mastercard" in header_area or "credit card" in header_area:
-        is_credit_card = True
-    if "business account statement" in header_area or "royal bank of canada business" in header_area:
-        is_credit_card = False
+    is_credit_card = is_credit_card_statement(raw_text)
     
     prev_bal = None
     ending_bal = None
@@ -765,6 +786,11 @@ def extract_digital_pdf(pdf_path, bank_name):
                     line_words = sorted(lines_dict[top_val], key=lambda x: x["x0"])
                     line_txt = " ".join([w["text"] for w in line_words]).strip()
                     line_txt_lower = line_txt.lower()
+
+                    # Page counters such as "1 of 4" can otherwise inherit the
+                    # preceding transaction date and be parsed as an amount row.
+                    if re.fullmatch(r'\d+\s+of\s+\d+', line_txt_lower):
+                        continue
                     
                     if footer_reached:
                         continue

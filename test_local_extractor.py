@@ -317,6 +317,14 @@ May 31 Closing totals 10,500.72 10,518.50"""
         """Test Scotiabank bank detection and MM/DD/YYYY date parsing."""
         self.assertEqual(local_extractor.detect_bank("scotiabank_business_statement.pdf"), "Scotiabank")
         self.assertEqual(local_extractor.detect_bank("scotia_chequing.pdf"), "Scotiabank")
+
+        business_text = """Statement Of: Business Account
+Date Description Withdrawals/Debits ($) Deposits/Credits ($) Balance ($)
+10/02/2026 TRANSFER TO CR. CARD MB-CREDIT CARD/LOC PAY. 1000.00 20498.99"""
+        self.assertFalse(local_extractor.is_credit_card_statement(business_text))
+        self.assertTrue(local_extractor.is_credit_card_statement(
+            "Scotia Momentum for business VISA credit card statement"
+        ))
         
         # Test full slash dates with 4-digit years
         parsed, m = local_extractor.parse_date("02/27/2026", 2026, 2, 2026, 3)
